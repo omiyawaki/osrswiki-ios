@@ -11,86 +11,80 @@ class SearchRepository {
     private let baseURL = "https://oldschool.runescape.wiki/api.php"
     
     func search(query: String) async throws -> [SearchResult] {
-        // Simulate API call for now
-        // In a real implementation, this would call the MediaWiki API
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return []
+        }
         
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
-        
-        // Return mock search results that would match the query
-        return [
-            SearchResult(
-                id: "1",
-                title: "\(query)_potion",
-                description: "A potion that provides various effects when consumed.",
-                url: URL(string: "https://oldschool.runescape.wiki/w/\(query)_potion")!,
-                thumbnailUrl: URL(string: "https://oldschool.runescape.wiki/images/thumb/placeholder.png/120px-placeholder.png"),
-                namespace: "Main",
-                score: 0.95
-            ),
-            SearchResult(
-                id: "2",
-                title: "\(query)_spell",
-                description: "A magic spell that can be cast using the appropriate runes.",
-                url: URL(string: "https://oldschool.runescape.wiki/w/\(query)_spell")!,
-                thumbnailUrl: nil,
-                namespace: "Main",
-                score: 0.87
-            ),
-            SearchResult(
-                id: "3",
-                title: "\(query)_monster",
-                description: "A creature found throughout Gielinor that players can fight.",
-                url: URL(string: "https://oldschool.runescape.wiki/w/\(query)_monster")!,
-                thumbnailUrl: URL(string: "https://oldschool.runescape.wiki/images/thumb/monster.png/120px-monster.png"),
-                namespace: "Main",
-                score: 0.72
-            )
+        // Build MediaWiki API search URL
+        var components = URLComponents(string: baseURL)!
+        components.queryItems = [
+            URLQueryItem(name: "action", value: "query"),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "list", value: "search"),
+            URLQueryItem(name: "srsearch", value: query),
+            URLQueryItem(name: "srlimit", value: "10"),
+            URLQueryItem(name: "srprop", value: "snippet|titlesnippet|size|timestamp"),
+            URLQueryItem(name: "srnamespace", value: "0") // Main namespace only
         ]
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        // Make API request
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        
+        // Parse JSON response
+        let searchResponse = try JSONDecoder().decode(WikiSearchResponse.self, from: data)
+        
+        // Convert to SearchResult objects
+        return searchResponse.query.search.map { result in
+            let cleanTitle = result.title.replacingOccurrences(of: " ", with: "_")
+            let wikiURL = URL(string: "https://oldschool.runescape.wiki/w/\(cleanTitle)")!
+            
+            return SearchResult(
+                id: String(result.pageid),
+                title: result.title,
+                description: result.snippet?.htmlStripped(),
+                url: wikiURL,
+                thumbnailUrl: nil, // Could be enhanced to fetch thumbnails
+                namespace: "Main",
+                score: nil
+            )
+        }
     }
 }
 
-class HistoryRepository {
-    private let userDefaults = UserDefaults.standard
-    private let historyKey = "search_history"
-    
-    func getHistory() -> [HistoryItem] {
-        guard let data = userDefaults.data(forKey: historyKey),
-              let history = try? JSONDecoder().decode([HistoryItem].self, from: data) else {
-            return []
-        }
-        return history.sorted { $0.visitedDate > $1.visitedDate }
-    }
-    
-    func addToHistory(_ item: HistoryItem) {
-        var history = getHistory()
-        
-        // Remove existing entry for same page
-        history.removeAll { $0.pageTitle == item.pageTitle }
-        
-        // Add new entry at beginning
-        history.insert(item, at: 0)
-        
-        // Keep only last 100 entries
-        if history.count > 100 {
-            history = Array(history.prefix(100))
-        }
-        
-        saveHistory(history)
-    }
-    
-    func removeFromHistory(_ id: String) {
-        var history = getHistory()
-        history.removeAll { $0.id == id }
-        saveHistory(history)
-    }
-    
-    func clearHistory() {
-        saveHistory([])
-    }
-    
-    private func saveHistory(_ history: [HistoryItem]) {
-        if let data = try? JSONEncoder().encode(history) {
-            userDefaults.set(data, forKey: historyKey)
-        }
+// MARK: - MediaWiki API Response Models
+struct WikiSearchResponse: Codable {
+    let query: WikiQuery
+}
+
+struct WikiQuery: Codable {
+    let search: [WikiSearchResult]
+}
+
+struct WikiSearchResult: Codable {
+    let pageid: Int
+    let title: String
+    let snippet: String?
+    let size: Int?
+    let timestamp: String?
+}
+
+// MARK: - Helper Extensions
+extension String {
+    func htmlStripped() -> String {
+        // Remove HTML tags from snippet
+        return self.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
+                  .replacingOccurrences(of: "&quot;", with: "\"")
+                  .replacingOccurrences(of: "&amp;", with: "&")
+                  .replacingOccurrences(of: "&lt;", with: "<")
+                  .replacingOccurrences(of: "&gt;", with: ">")
     }
 }

@@ -34,8 +34,13 @@ struct NewsView: View {
                         )
                     } else {
                         ForEach(viewModel.newsItems) { newsItem in
-                            NewsCardView(newsItem: newsItem)
-                                .padding(.horizontal)
+                            NewsCardView(newsItem: newsItem) {
+                                // Navigate to article using native webviewer
+                                if let url = newsItem.url {
+                                    appState.navigateToArticle(title: newsItem.title, url: url)
+                                }
+                            }
+                            .padding(.horizontal)
                         }
                     }
                 }
@@ -47,6 +52,9 @@ struct NewsView: View {
                 await viewModel.refresh()
             }
             .background(appState.currentTheme.backgroundColor)
+            .navigationDestination(for: ArticleDestination.self) { destination in
+                ArticleView(pageTitle: destination.title, pageUrl: destination.url)
+            }
         }
         .task {
             await viewModel.loadNews()

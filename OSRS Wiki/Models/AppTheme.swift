@@ -82,4 +82,49 @@ enum AppTheme: String, CaseIterable {
             return Color(.secondarySystemBackground)
         }
     }
+    
+    // Colors for WebView JavaScript injection (hex format)
+    var surfaceColor: String {
+        switch self {
+        case .osrsLight:
+            return "#F2EDE0"
+        case .osrsDark:
+            return "#1A1A1F"
+        default:
+            return colorScheme == .dark ? "#1C1C1E" : "#FFFFFF"
+        }
+    }
+    
+    var onSurfaceColor: String {
+        switch self {
+        case .osrsLight:
+            return "#2C1810"
+        case .osrsDark:
+            return "#E5D5A0"
+        default:
+            return colorScheme == .dark ? "#FFFFFF" : "#000000"
+        }
+    }
+    
+    var primaryColorHex: String {
+        switch self {
+        case .osrsLight:
+            return "#CDB34D"
+        case .osrsDark:
+            return "#E6CE66"
+        default:
+            return "#007AFF"
+        }
+    }
+    
+    var backgroundColorHex: String {
+        switch self {
+        case .osrsLight:
+            return "#F2EDE0"
+        case .osrsDark:
+            return "#1A1A1F"
+        default:
+            return colorScheme == .dark ? "#000000" : "#FFFFFF"
+        }
+    }
 }

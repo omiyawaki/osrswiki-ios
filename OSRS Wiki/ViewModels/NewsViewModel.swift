@@ -96,6 +96,7 @@ struct NewsItem: Identifiable, Codable {
 
 struct NewsCardView: View {
     let newsItem: NewsItem
+    let onReadMore: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -149,10 +150,7 @@ struct NewsCardView: View {
                 Spacer()
                 
                 Button("Read More") {
-                    // Navigate to full article
-                    if let url = newsItem.url {
-                        UIApplication.shared.open(url)
-                    }
+                    onReadMore()
                 }
                 .font(.subheadline)
                 .fontWeight(.medium)

@@ -20,6 +20,9 @@ class SearchViewModel: ObservableObject {
     private let historyRepository = HistoryRepository()
     private var cancellables = Set<AnyCancellable>()
     
+    // Navigation callback - will be set by the view
+    var navigateToArticle: ((String, URL) -> Void)?
+    
     init() {
         loadSearchHistory()
         loadRecentSearches()
@@ -55,9 +58,8 @@ class SearchViewModel: ObservableObject {
         historyRepository.addToHistory(historyItem)
         loadSearchHistory()
         
-        // Navigate to page (would be implemented with proper navigation)
-        // For now, open in Safari
-        UIApplication.shared.open(result.url)
+        // Navigate to article view within the app
+        navigateToArticle?(result.title, result.url)
     }
     
     func addToRecentSearches(_ query: String) {

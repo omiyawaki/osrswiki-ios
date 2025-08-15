@@ -58,4 +58,27 @@ class AppState: ObservableObject {
     func clearError() {
         errorMessage = nil
     }
+    
+    // Article navigation methods
+    func navigateToArticle(title: String, url: URL) {
+        let destination = ArticleDestination(title: title, url: url)
+        navigationPath.append(destination)
+    }
+    
+    func navigateBack() {
+        if !navigationPath.isEmpty {
+            navigationPath.removeLast()
+        }
+    }
+}
+
+// Navigation destinations
+struct ArticleDestination: Hashable {
+    let title: String
+    let url: URL
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(title)
+        hasher.combine(url)
+    }
 }

@@ -25,7 +25,15 @@ struct SearchView: View {
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.large)
             .background(appState.currentTheme.backgroundColor)
+            .navigationDestination(for: ArticleDestination.self) { destination in
+                ArticleView(pageTitle: destination.title, pageUrl: destination.url)
+            }
             .onAppear {
+                // Set up navigation callback
+                viewModel.navigateToArticle = { title, url in
+                    appState.navigateToArticle(title: title, url: url)
+                }
+                
                 // Auto-focus search when switching to this tab (matches Android behavior)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isSearchFocused = true
@@ -148,8 +156,8 @@ struct SearchView: View {
             } else {
                 ForEach(viewModel.searchHistory) { historyItem in
                     HistoryRowView(historyItem: historyItem) {
-                        // Navigate to page
-                        viewModel.navigateToPage(historyItem.pageTitle)
+                        // Navigate to page using the article viewer
+                        appState.navigateToArticle(title: historyItem.pageTitle, url: historyItem.pageUrl)
                     }
                 }
                 .onDelete { indexSet in
