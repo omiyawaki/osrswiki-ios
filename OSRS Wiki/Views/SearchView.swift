@@ -52,6 +52,9 @@ struct SearchView: View {
                 TextField("Search OSRS Wiki", text: $searchText)
                     .focused($isSearchFocused)
                     .textFieldStyle(PlainTextFieldStyle())
+                    .onChange(of: searchText) { _, newValue in
+                        viewModel.currentQuery = newValue
+                    }
                     .onSubmit {
                         performSearch()
                     }
@@ -89,11 +92,11 @@ struct SearchView: View {
             if searchText.isEmpty {
                 // Show history when no search text
                 historySection
-            } else if viewModel.isSearching {
-                // Show loading during search
+            } else if viewModel.isSearching && viewModel.searchResults.isEmpty {
+                // Show loading during initial search
                 ProgressView("Searching...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if viewModel.searchResults.isEmpty && !searchText.isEmpty {
+            } else if viewModel.searchResults.isEmpty && !searchText.isEmpty && !viewModel.isSearching {
                 // Show no results
                 EmptyStateView(
                     iconName: "magnifyingglass",
@@ -101,8 +104,17 @@ struct SearchView: View {
                     subtitle: "Try different search terms"
                 )
             } else {
-                // Show search results
+                // Show search results with error handling
                 searchResultsSection
+            }
+        }
+        .alert("Search Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button("OK") {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
             }
         }
     }
@@ -169,25 +181,71 @@ struct SearchView: View {
     }
     
     private var searchResultsSection: some View {
-        List(viewModel.searchResults) { result in
-            SearchResultRowView(result: result) {
-                viewModel.selectSearchResult(result)
-                viewModel.addToRecentSearches(searchText)
+        VStack(spacing: 0) {
+            // Results summary
+            if viewModel.totalResultCount > 0 {
+                HStack {
+                    Text("\(viewModel.totalResultCount) results")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray6))
             }
+            
+            List {
+                ForEach(viewModel.searchResults) { result in
+                    SearchResultRowView(result: result) {
+                        viewModel.selectSearchResult(result)
+                        viewModel.addToRecentSearches(searchText)
+                    }
+                }
+                
+                // Load more section
+                if viewModel.hasMoreResults {
+                    HStack {
+                        Spacer()
+                        if viewModel.isSearching {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Button("Load More Results") {
+                                Task {
+                                    await viewModel.loadMoreResults()
+                                }
+                            }
+                            .foregroundColor(.accentColor)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+                    .onAppear {
+                        Task {
+                            await viewModel.loadMoreResults()
+                        }
+                    }
+                }
+            }
+            .listStyle(PlainListStyle())
         }
-        .listStyle(PlainListStyle())
     }
     
     private func performSearch() {
         guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         
+        // Add to recent searches when user explicitly submits
+        viewModel.addToRecentSearches(searchText)
+        
         Task {
-            await viewModel.performSearch(query: searchText)
+            await viewModel.performSearch(query: searchText, isNewSearch: true)
         }
     }
     
     private func clearSearch() {
         searchText = ""
+        viewModel.currentQuery = ""
         viewModel.clearSearchResults()
     }
 }

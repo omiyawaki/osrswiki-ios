@@ -15,10 +15,16 @@ class SearchViewModel: ObservableObject {
     @Published var recentSearches: [String] = []
     @Published var isSearching: Bool = false
     @Published var errorMessage: String?
+    @Published var hasMoreResults: Bool = false
+    @Published var totalResultCount: Int = 0
+    @Published var currentQuery: String = ""
     
     private let searchRepository = SearchRepository()
     private let historyRepository = HistoryRepository()
     private var cancellables = Set<AnyCancellable>()
+    private var currentSearchTask: Task<Void, Never>?
+    private var searchOffset = 0
+    private let searchLimit = 20
     
     // Navigation callback - will be set by the view
     var navigateToArticle: ((String, URL) -> Void)?
@@ -26,22 +32,107 @@ class SearchViewModel: ObservableObject {
     init() {
         loadSearchHistory()
         loadRecentSearches()
+        setupSearchDebouncing()
     }
     
-    func performSearch(query: String) async {
-        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        
-        isSearching = true
-        errorMessage = nil
-        
-        do {
-            searchResults = try await searchRepository.search(query: query)
-        } catch {
-            errorMessage = "Search failed: \(error.localizedDescription)"
-            searchResults = []
+    private func setupSearchDebouncing() {
+        // Immediate search trigger for truly live results like Android
+        $currentQuery
+            .removeDuplicates()
+            .sink { [weak self] query in
+                print("🔍 SearchViewModel: Query changed to '\(query)'")
+                Task {
+                    await self?.performSearch(query: query, isNewSearch: true)
+                }
+            }
+            .store(in: &cancellables)
+            
+        // Optional: Keep a longer debounced version for API efficiency
+        $currentQuery
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .removeDuplicates()
+            .sink { [weak self] query in
+                // This could be used for more expensive operations
+                print("🔍 SearchViewModel: Debounced query: '\(query)'")
+            }
+            .store(in: &cancellables)
+    }
+    
+    func performSearch(query: String, isNewSearch: Bool = true) async {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🔍 SearchViewModel: performSearch called with query '\(trimmedQuery)'")
+        guard !trimmedQuery.isEmpty else {
+            print("🔍 SearchViewModel: Empty query, clearing results")
+            clearSearchResults()
+            return
         }
         
-        isSearching = false
+        // Cancel previous search if it's still running
+        currentSearchTask?.cancel()
+        
+        if isNewSearch {
+            searchOffset = 0
+            searchResults = []
+            errorMessage = nil
+        }
+        
+        isSearching = true
+        
+        currentSearchTask = Task {
+            do {
+                print("🔍 SearchViewModel: Starting search API call for '\(trimmedQuery)'")
+                
+                // Debug: Test direct API call for comparison
+                if trimmedQuery.lowercased() == "varrock" {
+                    await searchRepository.testDirectAPICall(query: trimmedQuery)
+                }
+                
+                let response = try await searchRepository.search(
+                    query: trimmedQuery,
+                    limit: searchLimit,
+                    offset: searchOffset
+                )
+                
+                guard !Task.isCancelled else { 
+                    print("🔍 SearchViewModel: Search task was cancelled")
+                    return 
+                }
+                
+                print("🔍 SearchViewModel: Got \(response.results.count) results, total: \(response.totalCount)")
+                
+                if isNewSearch {
+                    searchResults = response.results
+                } else {
+                    searchResults.append(contentsOf: response.results)
+                }
+                
+                hasMoreResults = response.hasMore
+                totalResultCount = response.totalCount
+                searchOffset += response.results.count
+                
+            } catch let error as SearchError {
+                guard !Task.isCancelled else { return }
+                print("🔍 SearchViewModel: SearchError: \(error.localizedDescription)")
+                errorMessage = error.localizedDescription
+                if isNewSearch {
+                    searchResults = []
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("🔍 SearchViewModel: General error: \(error.localizedDescription)")
+                errorMessage = "Search failed: \(error.localizedDescription)"
+                if isNewSearch {
+                    searchResults = []
+                }
+            }
+            
+            isSearching = false
+        }
+    }
+    
+    func loadMoreResults() async {
+        guard hasMoreResults && !isSearching && !currentQuery.isEmpty else { return }
+        await performSearch(query: currentQuery, isNewSearch: false)
     }
     
     func selectSearchResult(_ result: SearchResult) {
@@ -123,9 +214,14 @@ struct SearchResult: Identifiable, Codable {
     let title: String
     let description: String?
     let url: URL
-    let thumbnailUrl: URL?
-    let namespace: String?
+    var thumbnailUrl: URL? // Made mutable for batch thumbnail updates
+    let ns: Int? // Namespace ID to match Android exactly
+    let namespace: String? // Human readable namespace
     let score: Double?
+    let index: Int? // Added to preserve search ranking order
+    let size: Int? // Added to match Android
+    let wordcount: Int? // Added to match Android
+    let timestamp: String? // Added to match Android
     
     var displayTitle: String {
         return title.replacingOccurrences(of: "_", with: " ")
