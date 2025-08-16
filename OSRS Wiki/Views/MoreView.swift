@@ -9,6 +9,8 @@ import SwiftUI
 
 struct MoreView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = MoreViewModel()
     
     var body: some View {
@@ -29,7 +31,8 @@ struct MoreView: View {
             .listStyle(InsetGroupedListStyle())
             .navigationTitle("More")
             .navigationBarTitleDisplayMode(.large)
-            .background(appState.currentTheme.backgroundColor)
+            .background(.osrsBackground)
+            .scrollContentBackground(.hidden)
         }
     }
     
@@ -38,7 +41,7 @@ struct MoreView: View {
             NavigationLink(destination: AppearanceSettingsView()) {
                 MoreRowView(
                     iconName: "paintbrush.fill",
-                    iconColor: .blue,
+                    iconColor: .osrsPrimaryColor,
                     title: "Appearance",
                     subtitle: "Themes and display settings"
                 )
@@ -47,7 +50,7 @@ struct MoreView: View {
             NavigationLink(destination: OfflineSettingsView()) {
                 MoreRowView(
                     iconName: "arrow.down.circle.fill",
-                    iconColor: .green,
+                    iconColor: .osrsAccentColor,
                     title: "Offline Content",
                     subtitle: "Download pages for offline reading"
                 )
@@ -56,7 +59,7 @@ struct MoreView: View {
             NavigationLink(destination: NotificationSettingsView()) {
                 MoreRowView(
                     iconName: "bell.fill",
-                    iconColor: .orange,
+                    iconColor: .osrsSecondaryColor,
                     title: "Notifications",
                     subtitle: "News and update preferences"
                 )
@@ -69,7 +72,7 @@ struct MoreView: View {
             NavigationLink(destination: HistoryView()) {
                 MoreRowView(
                     iconName: "clock.fill",
-                    iconColor: .purple,
+                    iconColor: .osrsSecondaryColor,
                     title: "Reading History",
                     subtitle: "Pages you've visited"
                 )
@@ -80,17 +83,17 @@ struct MoreView: View {
             }) {
                 MoreRowView(
                     iconName: "trash.fill",
-                    iconColor: .red,
+                    iconColor: .osrsErrorColor,
                     title: "Clear Cache",
                     subtitle: "Free up storage space"
                 )
             }
-            .foregroundColor(.primary)
+            .foregroundStyle(.osrsOnSurface)
             
             NavigationLink(destination: StorageView()) {
                 MoreRowView(
                     iconName: "externaldrive.fill",
-                    iconColor: .gray,
+                    iconColor: .osrsOnSurfaceVariantColor,
                     title: "Storage",
                     subtitle: "Manage downloaded content"
                 )
@@ -103,7 +106,7 @@ struct MoreView: View {
             NavigationLink(destination: DonateView()) {
                 MoreRowView(
                     iconName: "heart.fill",
-                    iconColor: .pink,
+                    iconColor: .osrsErrorColor,
                     title: "Donate",
                     subtitle: "Support OSRS Wiki development"
                 )
@@ -112,7 +115,7 @@ struct MoreView: View {
             NavigationLink(destination: FeedbackView()) {
                 MoreRowView(
                     iconName: "envelope.fill",
-                    iconColor: .blue,
+                    iconColor: .osrsPrimaryColor,
                     title: "Send Feedback",
                     subtitle: "Report issues or request features"
                 )
@@ -123,24 +126,24 @@ struct MoreView: View {
             }) {
                 MoreRowView(
                     iconName: "square.and.arrow.up.fill",
-                    iconColor: .green,
+                    iconColor: .osrsAccentColor,
                     title: "Share App",
                     subtitle: "Tell others about OSRS Wiki"
                 )
             }
-            .foregroundColor(.primary)
+            .foregroundStyle(.osrsOnSurface)
             
             Button(action: {
                 viewModel.rateApp()
             }) {
                 MoreRowView(
                     iconName: "star.fill",
-                    iconColor: .yellow,
+                    iconColor: .osrsSecondaryColor,
                     title: "Rate App",
                     subtitle: "Rate us on the App Store"
                 )
             }
-            .foregroundColor(.primary)
+            .foregroundStyle(.osrsOnSurface)
         }
     }
     
@@ -149,7 +152,7 @@ struct MoreView: View {
             NavigationLink(destination: AboutView()) {
                 MoreRowView(
                     iconName: "info.circle.fill",
-                    iconColor: .blue,
+                    iconColor: .osrsPrimaryColor,
                     title: "About",
                     subtitle: "App version and information"
                 )
@@ -160,24 +163,24 @@ struct MoreView: View {
             }) {
                 MoreRowView(
                     iconName: "hand.raised.fill",
-                    iconColor: .orange,
+                    iconColor: .osrsSecondaryColor,
                     title: "Privacy Policy",
                     subtitle: "How we handle your data"
                 )
             }
-            .foregroundColor(.primary)
+            .foregroundStyle(.osrsOnSurface)
             
             Button(action: {
                 viewModel.openTermsOfService()
             }) {
                 MoreRowView(
                     iconName: "doc.text.fill",
-                    iconColor: .gray,
+                    iconColor: .osrsOnSurfaceVariantColor,
                     title: "Terms of Service",
                     subtitle: "Usage terms and conditions"
                 )
             }
-            .foregroundColor(.primary)
+            .foregroundStyle(.osrsOnSurface)
         }
     }
 }
@@ -197,11 +200,11 @@ struct MoreRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                 
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
             }
             
             Spacer()
@@ -213,4 +216,6 @@ struct MoreRowView: View {
 #Preview {
     MoreView()
         .environmentObject(AppState())
+        .environmentObject(OSRSThemeManager.preview)
+        .environment(\.osrsTheme, OSRSLightTheme())
 }

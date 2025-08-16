@@ -9,7 +9,8 @@ import SwiftUI
 import MessageUI
 
 struct FeedbackView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
+    @Environment(\.osrsTheme) var osrsTheme
     @State private var selectedFeedbackType: FeedbackType = .general
     @State private var feedbackText = ""
     @State private var userEmail = ""
@@ -33,7 +34,7 @@ struct FeedbackView: View {
         }
         .navigationTitle("Send Feedback")
         .navigationBarTitleDisplayMode(.large)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
         .sheet(isPresented: $showingMailComposer) {
             if MFMailComposeViewController.canSendMail() {
                 MailComposeView(
@@ -64,16 +65,16 @@ struct FeedbackView: View {
         VStack(spacing: 12) {
             Image(systemName: "envelope.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.blue)
+                .foregroundStyle(.osrsPrimary)
             
             Text("We'd love to hear from you!")
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             Text("Help us improve the OSRS Wiki app by sharing your thoughts, reporting bugs, or suggesting new features.")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
                 .multilineTextAlignment(.center)
         }
     }
@@ -82,7 +83,7 @@ struct FeedbackView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Feedback Type")
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             ForEach(FeedbackType.allCases, id: \.self) { type in
                 FeedbackTypeRow(
@@ -99,21 +100,21 @@ struct FeedbackView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Your Feedback")
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             TextEditor(text: $feedbackText)
                 .frame(minHeight: 120)
                 .padding(8)
-                .background(Color(.systemGray6))
+                .background(.osrsSurfaceVariant)
                 .cornerRadius(8)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
+                        .stroke(.osrsOutline, lineWidth: 1)
                 )
             
             Text("Please be as detailed as possible. For bugs, include steps to reproduce the issue.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
         }
     }
     
@@ -121,14 +122,14 @@ struct FeedbackView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Contact Information (Optional)")
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             TextField("Your email address", text: $userEmail)
                 .keyboardType(.emailAddress)
                 .autocapitalization(.none)
                 .disableAutocorrection(true)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(.osrsSurfaceVariant)
                 .cornerRadius(8)
             
             Text("We'll only use this to respond to your feedback.")
@@ -147,13 +148,13 @@ struct FeedbackView: View {
                     Text("System Information:")
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsOnSurfaceVariant)
                     
                     Text(systemInfoText)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsOnSurfaceVariant)
                         .padding(8)
-                        .background(Color(.systemGray6))
+                        .background(.osrsSurfaceVariant)
                         .cornerRadius(6)
                 }
             }
@@ -174,10 +175,10 @@ struct FeedbackView: View {
                     Text("Send Feedback")
                 }
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundStyle(.osrsOnPrimary)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isSubmitEnabled ? Color.blue : Color.gray)
+                .background(isSubmitEnabled ? .osrsPrimary : .osrsOnSurfaceVariant)
                 .cornerRadius(12)
             }
             .disabled(!isSubmitEnabled)
@@ -185,7 +186,7 @@ struct FeedbackView: View {
             Button("Clear Form") {
                 clearForm()
             }
-            .foregroundColor(.red)
+            .foregroundStyle(.osrsError)
             .font(.body)
         }
     }
@@ -203,7 +204,7 @@ struct FeedbackView: View {
         App Version: \(appVersion) (\(buildNumber))
         iOS Version: \(device.systemVersion)
         Device: \(device.model)
-        Theme: \(appState.currentTheme.rawValue)
+        Theme: \(themeManager.selectedTheme.rawValue)
         """
     }
     
@@ -278,26 +279,26 @@ struct FeedbackTypeRow: View {
                     Text(type.displayName)
                         .font(.body)
                         .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.osrsOnSurface)
                     
                     Text(type.description)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsOnSurfaceVariant)
                 }
                 
                 Spacer()
                 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.osrsPrimary)
                 }
             }
             .padding()
-            .background(isSelected ? Color.blue.opacity(0.1) : Color(.systemGray6))
+            .background(isSelected ? Color.osrsPrimaryColor.opacity(0.1) : Color.osrsSurfaceVariantColor)
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? Color.osrsPrimaryColor : Color.clear, lineWidth: 2)
             )
         }
     }
@@ -336,10 +337,10 @@ enum FeedbackType: CaseIterable {
     
     var color: Color {
         switch self {
-        case .bug: return .red
-        case .feature: return .yellow
-        case .general: return .blue
-        case .complaint: return .orange
+        case .bug: return Color.osrsErrorColor
+        case .feature: return Color.osrsSecondaryColor
+        case .general: return Color.osrsPrimaryColor
+        case .complaint: return Color.osrsAccentColor
         }
     }
 }
@@ -409,5 +410,7 @@ struct MailComposeView: UIViewControllerRepresentable {
     NavigationView {
         FeedbackView()
             .environmentObject(AppState())
+            .environmentObject(OSRSThemeManager.preview)
+            .environment(\.osrsTheme, OSRSLightTheme())
     }
 }

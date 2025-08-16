@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct HistoryView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = HistoryViewModel()
     @State private var searchText = ""
     @State private var showingClearConfirmation = false
@@ -26,7 +26,7 @@ struct HistoryView: View {
             }
             .navigationTitle("Reading History")
             .navigationBarTitleDisplayMode(.large)
-            .background(appState.currentTheme.backgroundColor)
+            .background(.osrsBackground)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -89,7 +89,7 @@ struct HistoryView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
     }
     
     private var emptyStateView: some View {
@@ -111,7 +111,7 @@ struct HistoryView: View {
             
             Button(action: {
                 // Navigate to search or main page
-                appState.setSelectedTab(.search)
+                // Navigate to search - TODO: implement navigation
             }) {
                 Text("Start Browsing")
                     .font(.headline)
@@ -123,7 +123,7 @@ struct HistoryView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
     }
     
     private var historyList: some View {
@@ -132,7 +132,7 @@ struct HistoryView: View {
                 HistoryEntryRowView(entry: entry) {
                     viewModel.removeHistoryEntry(entry)
                 }
-                .listRowBackground(appState.currentTheme.backgroundColor)
+                .listRowBackground(Color.osrsBackgroundColor)
             }
             .onDelete(perform: deleteEntries)
         }
@@ -319,5 +319,5 @@ class HistoryViewModel: ObservableObject {
 
 #Preview {
     HistoryView()
-        .environmentObject(AppState())
+        .environment(\.osrsTheme, OSRSLightTheme())
 }

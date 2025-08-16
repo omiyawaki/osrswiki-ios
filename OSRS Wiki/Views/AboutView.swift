@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AboutView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     private let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -26,7 +26,7 @@ struct AboutView: View {
         }
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.large)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
     }
     
     private var appHeaderSection: some View {
@@ -40,13 +40,12 @@ struct AboutView: View {
             
             VStack(spacing: 4) {
                 Text("OSRS Wiki")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .font(.osrsDisplay)
+                    .foregroundStyle(.osrsOnSurface)
                 
                 Text("Your ultimate Old School RuneScape companion")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.osrsBody)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                     .multilineTextAlignment(.center)
             }
         }
@@ -55,33 +54,32 @@ struct AboutView: View {
     private var versionSection: some View {
         VStack(spacing: 8) {
             Text("Version \(appVersion) (\(buildNumber))")
-                .font(.body)
-                .foregroundColor(.secondary)
+                .font(.osrsBody)
+                .foregroundStyle(.osrsOnSurfaceVariant)
             
             HStack(spacing: 16) {
                 Button("What's New") {
                     // TODO: Show changelog/release notes
                 }
-                .foregroundColor(.blue)
+                .foregroundStyle(.osrsPrimary)
                 
                 Button("Rate App") {
                     openAppStore()
                 }
-                .foregroundColor(.blue)
+                .foregroundStyle(.osrsPrimary)
             }
-            .font(.caption)
+            .font(.osrsCaption)
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(.osrsSurfaceVariant)
         .cornerRadius(12)
     }
     
     private var creditsSection: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Credits")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
+                .font(.osrsHeadline)
+                .foregroundStyle(.osrsOnSurface)
             
             creditItem(
                 title: "Jagex Ltd.",
@@ -121,23 +119,23 @@ struct AboutView: View {
                 Button("Privacy Policy") {
                     openPrivacyPolicy()
                 }
-                .foregroundColor(.blue)
+                .foregroundStyle(.osrsPrimary)
                 
                 Button("Terms of Service") {
                     openTermsOfService()
                 }
-                .foregroundColor(.blue)
+                .foregroundStyle(.osrsPrimary)
                 
                 Button("Contact Developer") {
                     openContactDeveloper()
                 }
-                .foregroundColor(.blue)
+                .foregroundStyle(.osrsPrimary)
             }
             .font(.body)
             
             Text("Made with ❤️ for the OSRS community")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.osrsCaption)
+                .foregroundStyle(.osrsOnSurfaceVariant)
                 .padding(.top, 8)
         }
     }
@@ -145,13 +143,12 @@ struct AboutView: View {
     private func creditItem(title: String, description: String, buttonText: String?, buttonAction: (() -> Void)?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .font(.osrsTitle)
+                .foregroundStyle(.osrsOnSurface)
             
             Text(description)
-                .font(.body)
-                .foregroundColor(.secondary)
+                .font(.osrsBody)
+                .foregroundStyle(.osrsOnSurfaceVariant)
                 .fixedSize(horizontal: false, vertical: true)
             
             if let buttonText = buttonText, let buttonAction = buttonAction {
@@ -160,14 +157,14 @@ struct AboutView: View {
                         Text(buttonText)
                         Image(systemName: "arrow.up.right")
                     }
-                    .font(.caption)
-                    .foregroundColor(.blue)
+                    .font(.osrsCaption)
+                    .foregroundStyle(.osrsPrimary)
                 }
                 .padding(.top, 4)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(.osrsSurfaceVariant)
         .cornerRadius(12)
     }
     
@@ -214,6 +211,7 @@ struct AboutView: View {
 #Preview {
     NavigationView {
         AboutView()
-            .environmentObject(AppState())
+            .environmentObject(OSRSThemeManager.preview)
+            .environment(\.osrsTheme, OSRSLightTheme())
     }
 }

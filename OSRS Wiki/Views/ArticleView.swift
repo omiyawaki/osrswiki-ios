@@ -9,7 +9,7 @@ import SwiftUI
 import WebKit
 
 struct ArticleView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel: ArticleViewModel
     @State private var isShowingShareSheet = false
     @State private var isShowingTableOfContents = false
@@ -26,7 +26,7 @@ struct ArticleView: View {
     var body: some View {
         ZStack {
             // Background
-            appState.currentTheme.backgroundColor
+            Color.osrsBackgroundColor
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -39,7 +39,6 @@ struct ArticleView: View {
                 
                 // WebView content
                 ArticleWebView(viewModel: viewModel)
-                    .environmentObject(appState)
             }
         }
         .navigationTitle(pageTitle)
@@ -142,5 +141,5 @@ struct TableOfContentsView: View {
         pageTitle: "Dragon",
         pageUrl: URL(string: "https://oldschool.runescape.wiki/w/Dragon")!
     )
-    .environmentObject(AppState())
+    .environment(\.osrsTheme, OSRSLightTheme())
 }

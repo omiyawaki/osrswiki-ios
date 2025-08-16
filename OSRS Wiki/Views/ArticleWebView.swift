@@ -11,6 +11,7 @@ import WebKit
 struct ArticleWebView: UIViewRepresentable {
     @ObservedObject var viewModel: ArticleViewModel
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
     
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -68,8 +69,8 @@ struct ArticleWebView: UIViewRepresentable {
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
-        // Apply theme changes
-        viewModel.injectThemeColors(appState.currentTheme)
+        // Apply modern OSRS theme changes
+        viewModel.injectThemeColors(themeManager)
     }
     
     func makeCoordinator() -> Coordinator {
@@ -280,4 +281,5 @@ struct ArticleWebView: UIViewRepresentable {
 #Preview {
     ArticleWebView(viewModel: ArticleViewModel(pageUrl: URL(string: "https://oldschool.runescape.wiki/w/Dragon")!))
         .environmentObject(AppState())
+        .environmentObject(OSRSThemeManager.preview)
 }

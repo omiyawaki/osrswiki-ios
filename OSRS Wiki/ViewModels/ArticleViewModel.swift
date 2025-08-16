@@ -96,14 +96,18 @@ class ArticleViewModel: NSObject, ObservableObject {
     }
     
     // JavaScript bridge methods
-    func injectThemeColors(_ theme: AppTheme) {
-        let themeScript = """
-            document.documentElement.style.setProperty('--color-surface', '\(theme.surfaceColor)');
-            document.documentElement.style.setProperty('--color-on-surface', '\(theme.onSurfaceColor)');
-            document.documentElement.style.setProperty('--color-primary', '\(theme.primaryColorHex)');
-            document.documentElement.style.setProperty('--color-background', '\(theme.backgroundColorHex)');
-        """
-        webView?.evaluateJavaScript(themeScript)
+    func injectThemeColors(_ themeManager: OSRSThemeManager) {
+        let webViewColors = themeManager.getWebViewColors()
+        let themeScript = webViewColors.generateJavaScript()
+        
+        print("🎨 ArticleViewModel: Injecting OSRS theme colors")
+        webView?.evaluateJavaScript(themeScript) { result, error in
+            if let error = error {
+                print("❌ ArticleViewModel: Theme injection failed: \(error)")
+            } else {
+                print("✅ ArticleViewModel: Theme colors injected successfully")
+            }
+        }
     }
     
     func extractTableOfContents() {

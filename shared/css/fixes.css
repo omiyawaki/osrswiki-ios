@@ -1,0 +1,251 @@
+/* --- Custom Fixes & Overrides --- */
+
+/*
+ * Set a consistent size for all images within a wikitable.
+ */
+.wikitable img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0;
+}
+
+/*
+ * Force size for <figure> elements inside wikitables.
+ */
+.wikitable figure.mw-default-size {
+    width: 22px;
+    height: 22px;
+    margin: 0 auto;
+}
+
+/*
+ * Fix for images inside list items (<li>) that were being
+ * rendered as block elements, causing incorrect text wrapping.
+ */
+li img.mw-file-element {
+    display: inline-block !important;
+    vertical-align: middle !important;
+    margin: 0 !important;
+}
+
+/*
+ * REGRESSION FIX & REFACTOR: Horizontally align figures with the
+ * .mw-halign-center class, and any non-floated standalone figures.
+ */
+figure.mw-halign-center,
+figure[typeof^="mw:File"]:not(.mw-halign-left):not(.mw-halign-right) {
+    display: block;
+    width: fit-content;
+    width: -moz-fit-content;
+    margin: 1em auto;
+    clear: both;
+}
+
+/*
+ * FIX: Add container styling (border, background) to standalone file figures,
+ * but ONLY if they have a non-empty caption AND are NOT floated.
+ */
+figure[typeof^="mw:File"]:has(figcaption:not(:empty)):not(.mw-halign-left):not(.mw-halign-right) {
+    background-color: var(--body-light);
+    border: 1px solid var(--body-border);
+    padding: 4px;
+    box-sizing: border-box;
+}
+
+/*
+ * FIX: Make the link wrapping the figure image a block element
+ * and center the image within it.
+ */
+figure[typeof^="mw:File"] > a {
+    display: block;
+    text-align: center;
+}
+
+/*
+ * FIX: Target the image inside any file figure specifically.
+ * Treat it as a block element and center it with automatic margins.
+ */
+figure[typeof^="mw:File"] > a > img {
+    display: block;
+    margin: 0 auto;
+    border-radius: 0;
+}
+
+/*
+ * Styling for all captions within the new figure container.
+ */
+figure > figcaption,
+.thumbcaption {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    margin: 6px 2px 2px 2px; /* Top, Right, Bottom, Left */
+    box-sizing: border-box;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+/*
+ * Hide empty caption blocks to prevent rendering empty boxes.
+ */
+figcaption:empty {
+    display: none;
+}
+
+/*
+ * FIX: Hide captions on floated images (.mw-halign-left, .mw-halign-right)
+ * to match the live wiki's behavior. Captions on these elements are
+ * suppressed to prevent layout issues with wrapped text.
+ */
+.mw-halign-left > figcaption,
+.mw-halign-right > figcaption {
+    display: none;
+}
+
+/*
+ * EXPERIMENTAL FIX: Force images within an infobox to display inline-block
+ * to allow for grid-like layouts (e.g., coin stacks). This overrides the
+ * general figure styles above that force images into block display.
+ */
+.infobox a > img {
+    display: inline-block !important;
+    vertical-align: middle;
+}
+
+/*
+ * EXPERIMENTAL FIX (v3): Ensure scenic images in an infobox span the entire
+ * container, while leaving inventory/item images at their natural size.
+ * This rule targets a container with .infobox-full-width-content but
+ * explicitly ignores it if it also has the .inventory-image class.
+ */
+.infobox-full-width-content:not(.inventory-image) img {
+    width: 100%;
+    height: auto; /* Maintain aspect ratio */
+}
+
+/* --- Responsive Video Embeds (Enhanced) --- */
+/*
+ * Comprehensive approach to make YouTube and other video embeds responsive.
+ * Targets MediaWiki containers and uses multiple strategies to overcome inline styles.
+ */
+
+/* MediaWiki embed containers - override inline styles with high specificity */
+figure.embedvideo[style],
+figure.embedvideo {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0.5em auto !important;
+    display: block !important;
+}
+
+/* MediaWiki embed wrapper - can be used as responsive container */
+.embedvideo-wrapper[style],
+.embedvideo-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+}
+
+/* When MediaWiki wrapper is set up as responsive container by JavaScript */
+.embedvideo-wrapper.responsive-embed-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    /* padding-bottom is set dynamically by JavaScript based on aspect ratio */
+}
+
+/* Classes added by JavaScript for enhanced targeting */
+.responsive-embed-figure {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0.5em auto !important;
+}
+
+/* High specificity selectors to override HTML attributes */
+iframe[src*="youtube.com"][width],
+iframe[src*="youtu.be"][width],
+iframe[src*="youtube-nocookie.com"][width],
+iframe[src*="youtube.com"][height],
+iframe[src*="youtu.be"][height],
+iframe[src*="youtube-nocookie.com"][height] {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0.5em auto !important;
+}
+
+/* Target iframes within MediaWiki embed containers specifically */
+figure.embedvideo iframe,
+.embedvideo-wrapper iframe {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+}
+
+/* Iframes within responsive MediaWiki containers (set up by JavaScript) */
+.embedvideo-wrapper.responsive-embed-wrapper iframe {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+}
+
+/* Legacy responsive wrapper support (kept for compatibility) */
+.responsive-video-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    height: 0 !important;
+    padding-bottom: 56.25% !important; /* 16:9 aspect ratio */
+    margin: 0.5em auto !important;
+    overflow: hidden !important;
+}
+
+.responsive-video-wrapper iframe {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+}
+
+/* Additional selectors for any video iframes */
+iframe[src*="video"],
+iframe[src*="embed"],
+iframe[src*="player"] {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* Force responsive behavior on any wide iframes */
+iframe[width] {
+    max-width: 100% !important;
+}
+
+/* Override any remaining inline styles with attribute selectors */
+[style*="width: 640px"],
+[style*="width:640px"],
+[style*="height: 360px"],
+[style*="height:360px"] {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+}
+
+/* Aspect ratio fallback for browsers that support it */
+@supports (aspect-ratio: 16/9) {
+    iframe[src*="youtube.com"][width],
+    iframe[src*="youtu.be"][width],
+    iframe[src*="youtube-nocookie.com"][width] {
+        aspect-ratio: 16/9 !important;
+        height: auto !important;
+    }
+}

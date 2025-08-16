@@ -205,6 +205,48 @@ extension Color {
     
 }
 
+// MARK: - Color Extension for Direct Color Access
+
+extension Color {
+    // Primary colors
+    static var osrsPrimaryColor: Color { OSRSLightTheme().primary }
+    static var osrsOnPrimaryColor: Color { OSRSLightTheme().onPrimary }
+    static var osrsPrimaryContainerColor: Color { OSRSLightTheme().primaryContainer }
+    static var osrsOnPrimaryContainerColor: Color { OSRSLightTheme().onPrimaryContainer }
+    
+    // Surface colors
+    static var osrsSurfaceColor: Color { OSRSLightTheme().surface }
+    static var osrsOnSurfaceColor: Color { OSRSLightTheme().onSurface }
+    static var osrsSurfaceVariantColor: Color { OSRSLightTheme().surfaceVariant }
+    static var osrsOnSurfaceVariantColor: Color { OSRSLightTheme().onSurfaceVariant }
+    
+    // Background colors
+    static var osrsBackgroundColor: Color { OSRSLightTheme().background }
+    static var osrsOnBackgroundColor: Color { OSRSLightTheme().onBackground }
+    
+    // Secondary colors
+    static var osrsSecondaryColor: Color { OSRSLightTheme().secondary }
+    static var osrsOnSecondaryColor: Color { OSRSLightTheme().onSecondary }
+    static var osrsSecondaryContainerColor: Color { OSRSLightTheme().secondaryContainer }
+    static var osrsOnSecondaryContainerColor: Color { OSRSLightTheme().onSecondaryContainer }
+    
+    // Accent and functional colors
+    static var osrsAccentColor: Color { OSRSLightTheme().accent }
+    static var osrsErrorColor: Color { OSRSLightTheme().error }
+    static var osrsOnErrorColor: Color { OSRSLightTheme().onError }
+    
+    // Outline and utility colors
+    static var osrsOutlineColor: Color { OSRSLightTheme().outline }
+    
+    // Text colors
+    static var osrsTextPrimaryColor: Color { OSRSLightTheme().textPrimary }
+    static var osrsTextSecondaryColor: Color { OSRSLightTheme().textSecondary }
+    
+    // Specialized colors
+    static var osrsBorderColor: Color { OSRSLightTheme().border }
+    static var osrsDividerColor: Color { OSRSLightTheme().divider }
+}
+
 // MARK: - Environment Integration
 
 /// Custom environment key for OSRS theme

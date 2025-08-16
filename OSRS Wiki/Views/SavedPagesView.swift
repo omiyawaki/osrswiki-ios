@@ -8,12 +8,12 @@
 import SwiftUI
 
 struct SavedPagesView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = SavedPagesViewModel()
     @State private var showingSearchView = false
     
     var body: some View {
-        NavigationStack(path: $appState.navigationPath) {
+        NavigationStack {
             VStack(spacing: 0) {
                 if viewModel.savedPages.isEmpty {
                     emptyStateView
@@ -23,7 +23,7 @@ struct SavedPagesView: View {
             }
             .navigationTitle("Saved Pages")
             .navigationBarTitleDisplayMode(.large)
-            .background(appState.currentTheme.backgroundColor)
+            .background(.osrsBackground)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -78,16 +78,16 @@ struct SavedPagesView: View {
             }
             
             Button("Browse Wiki") {
-                appState.setSelectedTab(.news)
+                // TODO: Navigate to news tab - implement navigation
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
-            .background(appState.currentTheme.primaryColor)
-            .foregroundColor(.white)
+            .background(.osrsPrimary)
+            .foregroundColor(.osrsOnPrimaryColor)
             .cornerRadius(8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
     }
     
     private var savedPagesListView: some View {
@@ -225,5 +225,5 @@ struct SavedPagesSearchView: View {
 
 #Preview {
     SavedPagesView()
-        .environmentObject(AppState())
+        .environment(\.osrsTheme, OSRSLightTheme())
 }
