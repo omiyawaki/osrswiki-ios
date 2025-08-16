@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct OfflineSettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     @State private var selectedCacheSizeLimit = "100"
     
     private let cacheSizeLimits = [
@@ -40,7 +40,7 @@ struct OfflineSettingsView: View {
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("Offline Content")
         .navigationBarTitleDisplayMode(.large)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
         .onAppear {
             loadSettings()
         }

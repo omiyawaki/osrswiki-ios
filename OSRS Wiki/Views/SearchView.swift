@@ -9,6 +9,8 @@ import SwiftUI
 
 struct SearchView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = SearchViewModel()
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
@@ -24,7 +26,7 @@ struct SearchView: View {
             }
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.large)
-            .background(appState.currentTheme.backgroundColor)
+            .background(.osrsBackground)
             .navigationDestination(for: ArticleDestination.self) { destination in
                 ArticleView(pageTitle: destination.title, pageUrl: destination.url)
             }
@@ -47,11 +49,12 @@ struct SearchView: View {
             // Main search bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                 
                 TextField("Search OSRS Wiki", text: $searchText)
                     .focused($isSearchFocused)
                     .textFieldStyle(PlainTextFieldStyle())
+                    .foregroundStyle(.osrsOnSurface)
                     .onChange(of: searchText) { _, newValue in
                         viewModel.currentQuery = newValue
                     }
@@ -62,7 +65,7 @@ struct SearchView: View {
                 if !searchText.isEmpty {
                     Button(action: clearSearch) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsOnSurfaceVariant)
                     }
                 }
                 
@@ -71,11 +74,11 @@ struct SearchView: View {
                     appState.showError("Voice search not yet implemented")
                 }) {
                     Image(systemName: "mic")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsOnSurfaceVariant)
                 }
             }
             .padding()
-            .background(Color(.systemGray6))
+            .background(.osrsSurfaceVariant)
             .cornerRadius(10)
             .padding(.horizontal)
             
@@ -84,7 +87,7 @@ struct SearchView: View {
                 recentSearchesSection
             }
         }
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
     }
     
     private var contentSection: some View {
@@ -125,7 +128,7 @@ struct SearchView: View {
                 Text("Recent Searches")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                 
                 Spacer()
                 
@@ -133,7 +136,7 @@ struct SearchView: View {
                     viewModel.clearRecentSearches()
                 }
                 .font(.subheadline)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(.osrsPrimary)
             }
             .padding(.horizontal)
             
@@ -146,7 +149,8 @@ struct SearchView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color(.systemGray5))
+                        .background(.osrsSurfaceVariant)
+                        .foregroundStyle(.osrsOnSurfaceVariant)
                         .cornerRadius(16)
                         .font(.subheadline)
                     }
@@ -187,12 +191,12 @@ struct SearchView: View {
                 HStack {
                     Text("\(viewModel.totalResultCount) results")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsOnSurfaceVariant)
                     Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
-                .background(Color(.systemGray6))
+                .background(.osrsSurfaceVariant)
             }
             
             List {
@@ -216,7 +220,7 @@ struct SearchView: View {
                                     await viewModel.loadMoreResults()
                                 }
                             }
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(.osrsPrimary)
                         }
                         Spacer()
                     }
@@ -253,4 +257,6 @@ struct SearchView: View {
 #Preview {
     SearchView()
         .environmentObject(AppState())
+        .environmentObject(OSRSThemeManager.preview)
+        .environment(\.osrsTheme, OSRSLightTheme())
 }

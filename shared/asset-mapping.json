@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "OSRS Wiki Asset Mapping Configuration",
+  "description": "Defines how shared resources are mapped to platform-specific deployment structures",
+  "version": "1.0.0",
+  "platforms": {
+    "android": {
+      "description": "Android asset mapping - files copied to app/src/main/assets/",
+      "target_base": "app/src/main/assets",
+      "mappings": [
+        {
+          "source_pattern": "css/*.css",
+          "target_dir": "styles",
+          "description": "Main CSS files go to styles/ directory"
+        },
+        {
+          "source_pattern": "css/modules/*.css", 
+          "target_dir": "styles/modules",
+          "description": "CSS modules maintain their subdirectory structure"
+        },
+        {
+          "source_pattern": "js/*.js",
+          "target_dir": "js",
+          "exclude_patterns": ["js/mediawiki/*.js"],
+          "description": "Main JavaScript files go to js/ directory"
+        },
+        {
+          "source_files": ["js/mediawiki/startup.js"],
+          "target_dir": "",
+          "description": "startup.js goes to assets root for direct access"
+        },
+        {
+          "source_files": ["js/mediawiki/page_bootstrap.js", "js/mediawiki/page_modules.js"],
+          "target_dir": "mediawiki",
+          "description": "Other MediaWiki modules go to mediawiki/ subdirectory"
+        },
+        {
+          "source_pattern": "js/*.css",
+          "target_dir": "web",
+          "description": "CSS files mixed in JS directory go to web/ for WebView context"
+        },
+        {
+          "source_files": [
+            "js/collapsible_content.js",
+            "js/horizontal_scroll_interceptor.js", 
+            "js/responsive_videos.js",
+            "js/clipboard_bridge.js",
+            "js/infobox_switcher_bootstrap.js",
+            "js/switch_infobox.js",
+            "js/ge_charts_init.js",
+            "js/highcharts-stock.js"
+          ],
+          "target_dir": "web",
+          "description": "WebView-specific JavaScript files"
+        },
+        {
+          "source_pattern": "assets/*.mbtiles",
+          "target_dir": "",
+          "description": "Map tiles go to assets root for MapLibre access"
+        },
+        {
+          "source_pattern": "data/**/*",
+          "target_dir": "data",
+          "description": "Data files maintain their structure"
+        }
+      ]
+    },
+    "ios": {
+      "description": "iOS asset mapping - files bundled into app Resources/",
+      "target_base": "Resources/shared",
+      "mappings": [
+        {
+          "source_pattern": "css/**/*.css",
+          "target_dir": "css",
+          "description": "All CSS files maintain their subdirectory structure"
+        },
+        {
+          "source_pattern": "js/**/*.js",
+          "target_dir": "js", 
+          "description": "All JavaScript files maintain their subdirectory structure"
+        },
+        {
+          "source_pattern": "js/**/*.css",
+          "target_dir": "css/web",
+          "description": "CSS files from JS directory organized under css/web/"
+        },
+        {
+          "source_pattern": "assets/**/*",
+          "target_dir": "assets",
+          "description": "All assets maintain their structure"
+        },
+        {
+          "source_pattern": "data/**/*", 
+          "target_dir": "data",
+          "description": "Data files maintain their structure"
+        }
+      ]
+    }
+  },
+  "validation": {
+    "required_files": [
+      "css/themes.css",
+      "css/base.css", 
+      "css/fonts.css",
+      "css/layout.css",
+      "css/components.css",
+      "css/wiki-integration.css",
+      "css/navbox_styles.css",
+      "css/fixes.css",
+      "js/tablesort.min.js",
+      "js/tablesort_init.js",
+      "js/collapsible_content.js",
+      "js/horizontal_scroll_interceptor.js",
+      "js/responsive_videos.js",
+      "js/clipboard_bridge.js",
+      "js/mediawiki/startup.js",
+      "assets/map_floor_3.mbtiles"
+    ],
+    "android_expected_paths": [
+      "styles/themes.css",
+      "styles/base.css",
+      "styles/fonts.css", 
+      "styles/layout.css",
+      "styles/components.css",
+      "styles/wiki-integration.css",
+      "styles/navbox_styles.css",
+      "styles/fixes.css",
+      "js/tablesort.min.js",
+      "js/tablesort_init.js",
+      "web/collapsible_content.js",
+      "web/collapsible_sections.css",
+      "web/collapsible_tables.css",
+      "web/horizontal_scroll_interceptor.js",
+      "web/responsive_videos.js",
+      "web/clipboard_bridge.js",
+      "web/infobox_switcher_bootstrap.js",
+      "web/switch_infobox.js",
+      "web/switch_infobox_styles.css",
+      "web/ge_charts_init.js",
+      "web/highcharts-stock.js",
+      "startup.js",
+      "mediawiki/page_bootstrap.js",
+      "mediawiki/page_modules.js",
+      "map_floor_3.mbtiles"
+    ]
+  },
+  "build_modifications": {
+    "android": {
+      "gradle_changes": {
+        "remove_relative_paths": [
+          "../../../shared/css",
+          "../../../shared/js", 
+          "../../../shared/assets"
+        ],
+        "ensure_local_assets": "app/src/main/assets"
+      }
+    },
+    "ios": {
+      "xcode_changes": {
+        "remove_build_phase_scripts": [
+          "Copy shared assets script with ../../shared/ paths"
+        ],
+        "add_resource_bundle": "Resources/shared"
+      }
+    }
+  },
+  "deployment_notes": {
+    "android": [
+      "The Android app expects specific directory structures (styles/, js/, web/)",
+      "WebView-related assets must be in web/ directory",
+      "MediaWiki modules go in mediawiki/ directory", 
+      "Map tiles must be in assets root for MapLibre access"
+    ],
+    "ios": [
+      "iOS uses a unified shared/ resource bundle structure",
+      "Swift code should load from Bundle.main resource paths",
+      "All shared resources maintain their original directory structure"
+    ]
+  }
+}

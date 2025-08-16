@@ -9,6 +9,8 @@ import SwiftUI
 
 struct MapView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = MapViewModel()
     
     var body: some View {
@@ -38,7 +40,7 @@ struct MapView: View {
             }
             .navigationTitle("OSRS Map")
             .navigationBarTitleDisplayMode(.inline)
-            .background(appState.currentTheme.backgroundColor)
+            .background(.osrsBackground)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -70,9 +72,10 @@ struct MapImageView: View {
                     .aspectRatio(contentMode: .fit)
             } placeholder: {
                 Rectangle()
-                    .fill(Color(.systemGray5))
+                    .fill(.osrsSurfaceVariant)
                     .overlay(
                         ProgressView()
+                            .tint(.osrsPrimaryColor)
                     )
             }
         } else {
@@ -93,9 +96,9 @@ struct MapControlsView: View {
             Button(action: viewModel.zoomIn) {
                 Image(systemName: "plus")
                     .font(.title2)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                     .frame(width: 44, height: 44)
-                    .background(Color(.systemBackground))
+                    .background(.osrsSurface)
                     .clipShape(Circle())
                     .shadow(radius: 2)
             }
@@ -103,9 +106,9 @@ struct MapControlsView: View {
             Button(action: viewModel.zoomOut) {
                 Image(systemName: "minus")
                     .font(.title2)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                     .frame(width: 44, height: 44)
-                    .background(Color(.systemBackground))
+                    .background(.osrsSurface)
                     .clipShape(Circle())
                     .shadow(radius: 2)
             }
@@ -113,9 +116,9 @@ struct MapControlsView: View {
             Button(action: viewModel.resetZoom) {
                 Image(systemName: "arrow.clockwise")
                     .font(.title2)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                     .frame(width: 44, height: 44)
-                    .background(Color(.systemBackground))
+                    .background(.osrsSurface)
                     .clipShape(Circle())
                     .shadow(radius: 2)
             }
@@ -126,4 +129,6 @@ struct MapControlsView: View {
 #Preview {
     MapView()
         .environmentObject(AppState())
+        .environmentObject(OSRSThemeManager.preview)
+        .environment(\.osrsTheme, OSRSLightTheme())
 }

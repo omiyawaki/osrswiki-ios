@@ -9,7 +9,8 @@ import SwiftUI
 import StoreKit
 
 struct DonateView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var donationManager = DonationManager()
     @State private var selectedAmount: DonationAmount?
     @State private var customAmount: String = ""
@@ -39,7 +40,7 @@ struct DonateView: View {
         }
         .navigationTitle("Support Development")
         .navigationBarTitleDisplayMode(.large)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
         .onAppear {
             donationManager.loadProducts()
         }
@@ -49,16 +50,16 @@ struct DonateView: View {
         VStack(spacing: 16) {
             Image(systemName: "heart.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.pink)
+                .foregroundStyle(.osrsError)
             
             Text("Support OSRS Wiki")
                 .font(.title)
                 .fontWeight(.bold)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             Text("Help keep this app free and ad-free! Your support helps us continue improving the app and adding new features for the OSRS community.")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
         }
@@ -68,7 +69,7 @@ struct DonateView: View {
         VStack(spacing: 12) {
             Text("Choose an amount")
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
                 ForEach(DonationAmount.allCases.filter { $0 != .custom }, id: \.self) { amount in
@@ -97,7 +98,7 @@ struct DonateView: View {
         VStack(spacing: 8) {
             HStack {
                 Image(systemName: "dollarsign.circle.fill")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.osrsAccent)
                 
                 TextField("Enter amount", text: $customAmount)
                     .keyboardType(.decimalPad)
@@ -106,10 +107,10 @@ struct DonateView: View {
             
             Text("Minimum: $1.00, Maximum: $99.99")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(.osrsSurfaceVariant)
         .cornerRadius(12)
     }
     
@@ -123,33 +124,33 @@ struct DonateView: View {
                     Text(donateButtonText)
                 }
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundStyle(.osrsOnPrimary)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isDonateButtonEnabled ? Color.pink : Color.gray)
+                .background(isDonateButtonEnabled ? .osrsPrimary : .osrsOnSurfaceVariant)
                 .cornerRadius(12)
             }
             .disabled(!isDonateButtonEnabled)
             
             Text("Secure payment powered by Apple Pay")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
             
             HStack(spacing: 20) {
                 Image(systemName: "lock.shield.fill")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.osrsAccent)
                 Text("Secure")
                 
                 Image(systemName: "creditcard.fill")
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.osrsPrimary)
                 Text("Apple Pay")
                 
                 Image(systemName: "checkmark.shield.fill")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.osrsAccent)
                 Text("Safe")
             }
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.osrsOnSurfaceVariant)
         }
     }
     
@@ -160,10 +161,10 @@ struct DonateView: View {
             
             Text("Processing payment...")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(.osrsSurfaceVariant)
         .cornerRadius(12)
     }
     
@@ -175,11 +176,11 @@ struct DonateView: View {
                 Text("Support the Wiki Too!")
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                 
                 Text("The Old School RuneScape Wiki is maintained by volunteers. Consider supporting them too!")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                     .multilineTextAlignment(.center)
                 
                 Button(action: {
@@ -190,11 +191,11 @@ struct DonateView: View {
                         Image(systemName: "arrow.up.right")
                     }
                     .font(.headline)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.osrsPrimary)
                     .padding()
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.blue, lineWidth: 2)
+                            .stroke(.osrsPrimary, lineWidth: 2)
                     )
                 }
             }
@@ -265,14 +266,14 @@ struct DonationAmountButton: View {
         Button(action: action) {
             Text(amount.displayValue)
                 .font(.headline)
-                .foregroundColor(isSelected ? .white : .primary)
+                .foregroundStyle(isSelected ? .osrsOnPrimary : .osrsOnSurface)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isSelected ? Color.pink : Color(.systemGray6))
+                .background(isSelected ? .osrsPrimary : .osrsSurfaceVariant)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSelected ? Color.pink : Color.clear, lineWidth: 2)
+                        .stroke(isSelected ? .osrsPrimaryColor : Color.clear, lineWidth: 2)
                 )
         }
     }
@@ -325,6 +326,7 @@ class DonationManager: ObservableObject {
 #Preview {
     NavigationView {
         DonateView()
-            .environmentObject(AppState())
+            .environmentObject(OSRSThemeManager.preview)
+            .environment(\.osrsTheme, OSRSLightTheme())
     }
 }

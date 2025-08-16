@@ -9,6 +9,8 @@ import SwiftUI
 
 struct NewsView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: OSRSThemeManager
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = NewsViewModel()
     
     var body: some View {
@@ -51,7 +53,7 @@ struct NewsView: View {
             .refreshable {
                 await viewModel.refresh()
             }
-            .background(appState.currentTheme.backgroundColor)
+            .background(.osrsBackground)
             .navigationDestination(for: ArticleDestination.self) { destination in
                 ArticleView(pageTitle: destination.title, pageUrl: destination.url)
             }
@@ -70,16 +72,16 @@ struct SearchBarView: View {
         Button(action: onTap) {
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                 
                 Text(placeholder)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Spacer()
             }
             .padding()
-            .background(Color(.systemGray6))
+            .background(.osrsSurfaceVariant)
             .cornerRadius(10)
         }
         .buttonStyle(PlainButtonStyle())
@@ -95,16 +97,16 @@ struct EmptyStateView: View {
         VStack(spacing: 16) {
             Image(systemName: iconName)
                 .font(.system(size: 48))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
             
             VStack(spacing: 8) {
                 Text(title)
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                 
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                     .multilineTextAlignment(.center)
             }
         }
@@ -116,4 +118,6 @@ struct EmptyStateView: View {
 #Preview {
     NewsView()
         .environmentObject(AppState())
+        .environmentObject(OSRSThemeManager.preview)
+        .environment(\.osrsTheme, OSRSLightTheme())
 }

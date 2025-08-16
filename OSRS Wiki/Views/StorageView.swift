@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct StorageView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = StorageViewModel()
     @State private var showingClearConfirmation = false
     @State private var selectedStorageType: StorageType?
@@ -22,7 +22,7 @@ struct StorageView: View {
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("Storage")
         .navigationBarTitleDisplayMode(.large)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
         .onAppear {
             viewModel.loadStorageInfo()
         }
@@ -185,7 +185,7 @@ struct AdvancedStorageView: View {
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("Advanced Storage")
         .navigationBarTitleDisplayMode(.inline)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
     }
 }
 

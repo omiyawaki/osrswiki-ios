@@ -9,7 +9,7 @@ import SwiftUI
 import UserNotifications
 
 struct NotificationSettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var notificationManager = NotificationManager()
     
     var body: some View {
@@ -25,7 +25,7 @@ struct NotificationSettingsView: View {
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.large)
-        .background(appState.currentTheme.backgroundColor)
+        .background(.osrsBackground)
         .onAppear {
             notificationManager.checkPermissionStatus()
         }
@@ -298,6 +298,6 @@ enum NotificationFrequency: String, CaseIterable {
 #Preview {
     NavigationView {
         NotificationSettingsView()
-            .environmentObject(AppState())
+            .environment(\.osrsTheme, OSRSLightTheme())
     }
 }

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @StateObject private var appState = AppState()
+    @StateObject private var themeManager = OSRSThemeManager()
     
     var body: some View {
         TabView(selection: $appState.selectedTab) {
@@ -63,9 +64,17 @@ struct MainTabView: View {
                 .accessibilityLabel(TabItem.more.accessibilityLabel)
         }
         .environmentObject(appState)
-        .preferredColorScheme(appState.currentTheme.colorScheme)
+        .environmentObject(themeManager)
+        .environment(\.osrsTheme, themeManager.currentTheme)
+        .preferredColorScheme(themeManager.currentColorScheme)
+        .accentColor(Color(themeManager.currentTheme.primary))
         .onChange(of: appState.selectedTab) { _, newTab in
             appState.setSelectedTab(newTab)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            // Update system color scheme when app becomes active
+            let currentSystemScheme: ColorScheme = UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
+            themeManager.updateSystemColorScheme(currentSystemScheme)
         }
         .alert("Error", isPresented: .constant(appState.errorMessage != nil)) {
             Button("OK") {
