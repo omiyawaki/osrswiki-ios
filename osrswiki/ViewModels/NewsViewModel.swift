@@ -105,13 +105,13 @@ struct NewsCardView: View {
                 Label(newsItem.category.displayName, 
                       systemImage: newsItem.category.iconName)
                     .font(.caption)
-                    .foregroundColor(newsItem.category.color)
+                    .foregroundStyle(.osrsAccent)
                 
                 Spacer()
                 
                 Text(newsItem.publishedDate, style: .date)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsTextSecondary)
             }
             
             // Image if available
@@ -122,9 +122,10 @@ struct NewsCardView: View {
                         .aspectRatio(contentMode: .fill)
                 } placeholder: {
                     Rectangle()
-                        .fill(Color(.systemGray5))
+                        .fill(.osrsSurfaceVariant)
                         .overlay(
                             ProgressView()
+                                .tint(Color.osrsAccentColor)
                         )
                 }
                 .frame(height: 180)
@@ -136,12 +137,12 @@ struct NewsCardView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(newsItem.title)
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                     .lineLimit(3)
                 
                 Text(newsItem.summary)
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsTextSecondary)
                     .lineLimit(4)
             }
             
@@ -154,11 +155,11 @@ struct NewsCardView: View {
                 }
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(.osrsAccent)
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(.osrsSurface)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
     }

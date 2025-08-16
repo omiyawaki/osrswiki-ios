@@ -68,6 +68,9 @@ struct MainTabView: View {
         .environment(\.osrsTheme, themeManager.currentTheme)
         .preferredColorScheme(themeManager.currentColorScheme)
         .accentColor(Color(themeManager.currentTheme.primary))
+        .toolbarBackground(.osrsBackground, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarColorScheme(themeManager.currentColorScheme == .dark ? .dark : .light, for: .tabBar)
         .onChange(of: appState.selectedTab) { _, newTab in
             appState.setSelectedTab(newTab)
         }
