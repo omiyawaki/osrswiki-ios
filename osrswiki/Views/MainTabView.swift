@@ -23,15 +23,15 @@ struct MainTabView: View {
                 .tag(TabItem.news)
                 .accessibilityLabel(TabItem.news.accessibilityLabel)
             
-            // Map Tab
-            MapView()
+            // Saved Tab
+            SavedPagesView()
                 .tabItem {
-                    Image(systemName: appState.selectedTab == .map ? 
-                          TabItem.map.selectedIconName : TabItem.map.iconName)
-                    Text(TabItem.map.title)
+                    Image(systemName: appState.selectedTab == .saved ? 
+                          TabItem.saved.selectedIconName : TabItem.saved.iconName)
+                    Text(TabItem.saved.title)
                 }
-                .tag(TabItem.map)
-                .accessibilityLabel(TabItem.map.accessibilityLabel)
+                .tag(TabItem.saved)
+                .accessibilityLabel(TabItem.saved.accessibilityLabel)
             
             // Search Tab
             SearchView()
@@ -43,15 +43,15 @@ struct MainTabView: View {
                 .tag(TabItem.search)
                 .accessibilityLabel(TabItem.search.accessibilityLabel)
             
-            // Saved Tab
-            SavedPagesView()
+            // Map Tab
+            MapView()
                 .tabItem {
-                    Image(systemName: appState.selectedTab == .saved ? 
-                          TabItem.saved.selectedIconName : TabItem.saved.iconName)
-                    Text(TabItem.saved.title)
+                    Image(systemName: appState.selectedTab == .map ? 
+                          TabItem.map.selectedIconName : TabItem.map.iconName)
+                    Text(TabItem.map.title)
                 }
-                .tag(TabItem.saved)
-                .accessibilityLabel(TabItem.saved.accessibilityLabel)
+                .tag(TabItem.map)
+                .accessibilityLabel(TabItem.map.accessibilityLabel)
             
             // More Tab
             MoreView()

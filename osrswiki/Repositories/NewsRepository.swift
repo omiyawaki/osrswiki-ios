@@ -23,7 +23,7 @@ class NewsRepository {
                 title: "Forestry: The Way of the Forester",
                 summary: "Train Forestry, a new way to train Woodcutting, featuring events, special logs, and unique rewards!",
                 content: nil,
-                imageUrl: URL(string: "https://secure.runescape.com/m=news/gfx/2023/forestry.jpg"),
+                imageUrl: URL(string: "https://oldschool.runescape.wiki/images/Main_page_-_A_PoH_Recode_%26_More_Fixes.png"),
                 publishedDate: Date().addingTimeInterval(-86400), // 1 day ago
                 category: .update,
                 url: URL(string: "https://oldschool.runescape.wiki/w/Forestry")
@@ -33,7 +33,7 @@ class NewsRepository {
                 title: "Desert Treasure II - The Fallen Empire",
                 summary: "The epic sequel to one of OSRS's most beloved quests is here! Face new challenges and unlock powerful rewards.",
                 content: nil,
-                imageUrl: URL(string: "https://secure.runescape.com/m=news/gfx/2023/dt2.jpg"),
+                imageUrl: URL(string: "https://oldschool.runescape.wiki/images/Main_page_-_Varlamore_%26_Summer_Sweep-Up_Combat_Tweaks.png"),
                 publishedDate: Date().addingTimeInterval(-172800), // 2 days ago
                 category: .update,
                 url: URL(string: "https://oldschool.runescape.wiki/w/Desert_Treasure_II")
