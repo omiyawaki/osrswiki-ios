@@ -199,11 +199,22 @@ struct MoreRowView: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.body)
+                    .font(.osrsTitle)
                     .foregroundStyle(.osrsOnSurface)
+                    .onAppear {
+                        if title == "Appearance" { // Only log once
+                            print("🔍 MORE VIEW FONT TEST:")
+                            print("   .osrsTitle should use: Alegreya-Medium")
+                            let testFont = UIFont(name: "Alegreya-Medium", size: 20)
+                            print("   Alegreya-Medium available: \(testFont != nil)")
+                            if let font = testFont {
+                                print("   Font family: '\(font.familyName)' name: '\(font.fontName)'")
+                            }
+                        }
+                    }
                 
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.osrsBody)
                     .foregroundStyle(.osrsOnSurfaceVariant)
             }
             

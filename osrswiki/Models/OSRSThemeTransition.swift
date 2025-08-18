@@ -217,7 +217,7 @@ struct osrsThemeTransitionIndicator: View {
 // MARK: - Transition Presets
 
 /// Pre-configured transition animations for common UI elements
-enum OSRSTransitionPreset {
+enum osrsTransitionPreset {
     case navigation
     case content
     case button
@@ -258,7 +258,7 @@ enum OSRSTransitionPreset {
 extension View {
     /// Apply a pre-configured transition preset
     /// - Parameter preset: The transition preset to apply
-    func osrsTransition(_ preset: OSRSTransitionPreset, isActive: Bool) -> some View {
+    func osrsTransition(_ preset: osrsTransitionPreset, isActive: Bool) -> some View {
         self
             .opacity(isActive ? 0.8 : 1.0)
             .scaleEffect(isActive ? 0.98 : 1.0)

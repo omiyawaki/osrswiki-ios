@@ -9,6 +9,13 @@ import SwiftUI
 
 @main
 struct osrswikiApp: App {
+    init() {
+        // Register custom fonts when app starts
+        print("🚀 App starting...")
+        osrsFontRegistrar.registerFonts()
+        print("✅ Font registration completed")
+    }
+    
     var body: some Scene {
         WindowGroup {
             MainTabView()

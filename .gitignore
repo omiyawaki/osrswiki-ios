@@ -16,7 +16,10 @@ xcuserdata/
 *.moved-aside
 *.xcuserstate
 *.xcscmblueprint
-*.xcscheme
+# Ignore user-specific schemes but allow shared schemes
+xcuserdata/*/xcschemes/
+# Allow shared schemes
+!*/xcshareddata/xcschemes/*.xcscheme
 
 # iOS
 *.ipa

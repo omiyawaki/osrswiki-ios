@@ -7,6 +7,7 @@
 
 import SwiftUI
 import StoreKit
+import PassKit
 
 struct DonateView: View {
     @EnvironmentObject var themeManager: osrsThemeManager
@@ -228,6 +229,11 @@ struct DonateView: View {
     }
     
     private func processDonation() {
+        guard donationManager.isApplePayAvailable else {
+            // Show alert that Apple Pay is not available
+            return
+        }
+        
         showingProcessing = true
         
         let amount: Double
@@ -305,9 +311,12 @@ enum DonationAmount: CaseIterable {
 }
 
 // MARK: - DonationManager
-class DonationManager: ObservableObject {
+class DonationManager: NSObject, ObservableObject {
     @Published var products: [SKProduct] = []
     @Published var canMakePayments = SKPaymentQueue.canMakePayments()
+    @Published var isApplePayAvailable = PKPaymentAuthorizationViewController.canMakePayments()
+    
+    private var donationCompletion: ((Bool) -> Void)?
     
     func loadProducts() {
         // TODO: Implement StoreKit product loading for in-app purchases
@@ -315,10 +324,69 @@ class DonationManager: ObservableObject {
     }
     
     func processDonation(amount: Double, completion: @escaping (Bool) -> Void) {
-        // TODO: Implement actual donation processing through StoreKit
-        // For now, simulate processing
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            completion(true)
+        guard PKPaymentAuthorizationViewController.canMakePayments() else {
+            completion(false)
+            return
+        }
+        
+        self.donationCompletion = completion
+        
+        let request = PKPaymentRequest()
+        request.merchantIdentifier = "merchant.com.omiyawaki.osrswiki" 
+        request.supportedNetworks = [.visa, .masterCard, .amex, .discover]
+        request.merchantCapabilities = .threeDSecure
+        request.countryCode = "US"
+        request.currencyCode = "USD"
+        
+        let paymentItem = PKPaymentSummaryItem(
+            label: "OSRS Wiki Donation",
+            amount: NSDecimalNumber(value: amount)
+        )
+        request.paymentSummaryItems = [paymentItem]
+        
+        guard let authorizationViewController = PKPaymentAuthorizationViewController(paymentRequest: request) else {
+            completion(false)
+            return
+        }
+        
+        authorizationViewController.delegate = self
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            
+            var topViewController = rootViewController
+            while let presentedViewController = topViewController.presentedViewController {
+                topViewController = presentedViewController
+            }
+            
+            topViewController.present(authorizationViewController, animated: true)
+        }
+    }
+}
+
+// MARK: - PKPaymentAuthorizationViewControllerDelegate
+extension DonationManager: PKPaymentAuthorizationViewControllerDelegate {
+    func paymentAuthorizationViewController(
+        _ controller: PKPaymentAuthorizationViewController,
+        didAuthorizePayment payment: PKPayment,
+        handler completion: @escaping (PKPaymentAuthorizationResult) -> Void
+    ) {
+        // Process the payment with your backend
+        // For demo purposes, we'll simulate success
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            completion(PKPaymentAuthorizationResult(status: .success, errors: nil))
+            self.donationCompletion?(true)
+            self.donationCompletion = nil
+        }
+    }
+    
+    func paymentAuthorizationViewControllerDidFinish(_ controller: PKPaymentAuthorizationViewController) {
+        controller.dismiss(animated: true)
+        // If donation completion hasn't been called yet (user cancelled), call it with false
+        if let completion = donationCompletion {
+            completion(false)
+            donationCompletion = nil
         }
     }
 }

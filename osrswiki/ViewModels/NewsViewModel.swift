@@ -136,12 +136,12 @@ struct NewsCardView: View {
             // Title and summary
             VStack(alignment: .leading, spacing: 8) {
                 Text(newsItem.title)
-                    .font(.headline)
+                    .font(.osrsTitle)
                     .foregroundStyle(.osrsOnSurface)
                     .lineLimit(3)
                 
                 Text(newsItem.summary)
-                    .font(.body)
+                    .font(.osrsBody)
                     .foregroundStyle(.osrsTextSecondary)
                     .lineLimit(4)
             }

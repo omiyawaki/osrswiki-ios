@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>alegreya_black.ttf</string>
+		<string>alegreya_black_italic.ttf</string>
+		<string>alegreya_bold.ttf</string>
+		<string>alegreya_bold_italic.ttf</string>
+		<string>alegreya_extrabold.ttf</string>
+		<string>alegreya_extrabold_italic.ttf</string>
+		<string>alegreya_medium.ttf</string>
+		<string>alegreya_medium_italic.ttf</string>
+		<string>alegreya_semibold.ttf</string>
+		<string>alegreya_semibold_italic.ttf</string>
+		<string>alegreya_sc_black.ttf</string>
+		<string>alegreya_sc_black_italic.ttf</string>
+		<string>alegreya_sc_bold.ttf</string>
+		<string>alegreya_sc_bold_italic.ttf</string>
+		<string>alegreya_sc_extrabold.ttf</string>
+		<string>alegreya_sc_extrabold_italic.ttf</string>
+		<string>alegreya_sc_italic.ttf</string>
+		<string>alegreya_sc_medium.ttf</string>
+		<string>alegreya_sc_medium_italic.ttf</string>
+		<string>alegreya_sc_regular.ttf</string>
+		<string>runescape_bold.ttf</string>
+		<string>runescape_plain.ttf</string>
+	</array>
+</dict>
+</plist>

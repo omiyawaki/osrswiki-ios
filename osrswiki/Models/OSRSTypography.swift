@@ -14,17 +14,41 @@ extension Font {
     // MARK: - Display Text (Major headings, hero text)
     
     /// Display style using Alegreya Bold - 32pt equivalent
-    static let osrsDisplay = Font.custom("Alegreya-Bold", size: 32)
+    static let osrsDisplay: Font = {
+        let testFont = UIFont(name: "Alegreya-Bold", size: 32)
+        NSLog("OSRS FONT DEBUG: osrsDisplay - Alegreya-Bold available: \(testFont != nil)")
+        if testFont == nil {
+            NSLog("OSRS FONT DEBUG: osrsDisplay - FALLBACK to Times-Bold")
+            return Font.custom("Times-Bold", size: 32)
+        }
+        return Font.custom("Alegreya-Bold", size: 32)
+    }()
     
     // MARK: - Headlines (Section headers, major navigation)
     
     /// Headline style using Alegreya Bold - 28pt equivalent
-    static let osrsHeadline = Font.custom("Alegreya-Bold", size: 28)
+    static let osrsHeadline: Font = {
+        let testFont = UIFont(name: "Alegreya-Bold", size: 28)
+        NSLog("OSRS FONT DEBUG: osrsHeadline - Alegreya-Bold available: \(testFont != nil)")
+        if testFont == nil {
+            NSLog("OSRS FONT DEBUG: osrsHeadline - FALLBACK to Times-Bold")
+            return Font.custom("Times-Bold", size: 28)
+        }
+        return Font.custom("Alegreya-Bold", size: 28)
+    }()
     
     // MARK: - Titles (Card titles, page titles, important text)
     
-    /// Title style using Alegreya Regular - 20pt equivalent
-    static let osrsTitle = Font.custom("Alegreya-Regular", size: 20)
+    /// Title style using Alegreya Medium - 20pt equivalent
+    static let osrsTitle: Font = {
+        let testFont = UIFont(name: "Alegreya-Medium", size: 20)
+        NSLog("OSRS FONT DEBUG: osrsTitle - Alegreya-Medium available: \(testFont != nil)")
+        if testFont == nil {
+            NSLog("OSRS FONT DEBUG: osrsTitle - FALLBACK to Courier (monospace - should be obvious)")
+            return Font.custom("Courier", size: 20)
+        }
+        return Font.custom("Alegreya-Medium", size: 20)
+    }()
     
     /// Title Bold style using Alegreya Bold - 20pt equivalent
     static let osrsTitleBold = Font.custom("Alegreya-Bold", size: 20)
@@ -82,19 +106,19 @@ extension Font {
     // MARK: - Small Caps Styles (Using Alegreya SC when available)
     
     /// Navigation small caps using Alegreya SC - 12pt equivalent
-    static let osrsNavigationSmallCaps = Font.custom("Alegreya SC", size: 12)
+    static let osrsNavigationSmallCaps = Font.custom("AlegreyaSC-Regular", size: 12)
     
     /// Section header small caps using Alegreya SC Bold - 24pt equivalent
-    static let osrsSectionHeaderSmallCaps = Font.custom("Alegreya SC", size: 24).weight(.bold)
+    static let osrsSectionHeaderSmallCaps = Font.custom("AlegreyaSC-Bold", size: 24)
     
     /// Metadata small caps using Alegreya SC - 12pt equivalent
-    static let osrsMetadataSmallCaps = Font.custom("Alegreya SC", size: 12)
+    static let osrsMetadataSmallCaps = Font.custom("AlegreyaSC-Regular", size: 12)
     
     /// Button small caps using Alegreya SC - 13pt equivalent
-    static let osrsButtonSmallCaps = Font.custom("Alegreya SC", size: 13)
+    static let osrsButtonSmallCaps = Font.custom("AlegreyaSC-Regular", size: 13)
     
     /// Tag small caps using Alegreya SC - 13pt equivalent
-    static let osrsTagSmallCaps = Font.custom("Alegreya SC", size: 13)
+    static let osrsTagSmallCaps = Font.custom("AlegreyaSC-Regular", size: 13)
     
     // MARK: - UI Specific Styles
     
@@ -196,25 +220,145 @@ extension EnvironmentValues {
 
 /// Helper to register custom fonts if needed
 struct osrsFontRegistrar {
-    /// Register Alegreya fonts for OSRS theming
-    /// Note: Fonts should be added to app bundle and Info.plist
+    /// Register Alegreya fonts for OSRS theming using modern iOS approach
     static func registerFonts() {
-        // Custom font registration logic if needed
-        // This would typically be called in AppDelegate or SceneDelegate
-        print("📝 OSRS Typography: Custom fonts should be registered in app bundle")
+        NSLog("🔧 OSRS: Starting modern font registration...")
+        
+        // Use Bundle.main.urls approach recommended for modern iOS
+        guard let fontURLs = Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) else {
+            NSLog("❌ OSRS: No TTF files found in bundle")
+            return
+        }
+        
+        NSLog("📄 OSRS: Found \(fontURLs.count) TTF files in bundle")
+        
+        // Register all found TTF fonts
+        for fontURL in fontURLs {
+            let fileName = fontURL.lastPathComponent
+            var errorRef: Unmanaged<CFError>?
+            
+            if CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, &errorRef) {
+                NSLog("✅ OSRS: Successfully registered font: \(fileName)")
+            } else {
+                if let error = errorRef?.takeRetainedValue() {
+                    NSLog("❌ OSRS: Failed to register font \(fileName): \(error)")
+                } else {
+                    NSLog("❌ OSRS: Failed to register font \(fileName): Unknown error")
+                }
+            }
+        }
+        
+        // Verify Alegreya fonts are now available
+        NSLog("🧪 OSRS: Testing font availability...")
+        let testFonts = ["Alegreya-Bold", "Alegreya-Medium", "AlegreyaSC-Regular"]
+        for fontName in testFonts {
+            let isAvailable = UIFont(name: fontName, size: 16) != nil
+            NSLog("   \(fontName): \(isAvailable ? "✅ Available" : "❌ Not available")")
+        }
+        
+        // List all Alegreya font families
+        let alegreyaFamilies = UIFont.familyNames.filter { $0.lowercased().contains("alegreya") }
+        if !alegreyaFamilies.isEmpty {
+            NSLog("📝 OSRS: Available Alegreya font families:")
+            for family in alegreyaFamilies {
+                NSLog("   Family: \(family)")
+                for fontName in UIFont.fontNames(forFamilyName: family) {
+                    NSLog("     Font: \(fontName)")
+                }
+            }
+        } else {
+            NSLog("⚠️ OSRS: No Alegreya font families found")
+        }
     }
     
     /// Check if custom fonts are available
     static func areCustomFontsAvailable() -> Bool {
-        let alegreyaAvailable = UIFont(name: "Alegreya-Regular", size: 16) != nil
-        let alegreyaSCAvailable = UIFont(name: "Alegreya SC", size: 16) != nil
+        // Test multiple font name variations for Alegreya
+        let alegreyaVariations = ["Alegreya", "Alegreya-Regular", "Alegreya-Medium", "alegreya_medium"]
+        let alegreyaSCVariations = ["Alegreya SC", "AlegreyaSC", "alegreya_sc_regular"]
+        
+        let alegreyaAvailable = alegreyaVariations.contains { UIFont(name: $0, size: 16) != nil }
+        let alegreyaSCAvailable = alegreyaSCVariations.contains { UIFont(name: $0, size: 16) != nil }
         
         if !alegreyaAvailable || !alegreyaSCAvailable {
             print("⚠️ OSRS Typography: Custom fonts not available, falling back to system fonts")
+            print("📝 Available fonts: \(UIFont.familyNames.sorted())")
             return false
         }
         
         return true
+    }
+    
+    /// Get the correct font name for a given style, with automatic fallback
+    static func fontName(style: osrsFontStyle) -> String {
+        // First test if any Alegreya fonts are available at all
+        let allAlegreyaVariations = [
+            "Alegreya", "Alegreya-Regular", "Alegreya-Medium", "Alegreya-Bold", "Alegreya-SemiBold",
+            "alegreya_medium", "alegreya_bold", "alegreya_semibold", "alegreya_extrabold",
+            "Alegreya SC", "AlegreyaSC", "alegreya_sc_regular", "alegreya_sc_medium", "alegreya_sc_bold"
+        ]
+        
+        switch style {
+        case .display, .headline:
+            // Try Alegreya Bold variations
+            let boldVariations = ["Alegreya-Bold", "alegreya_bold", "Alegreya Bold", "Alegreya-SemiBold", "alegreya_semibold"]
+            for variation in boldVariations {
+                if UIFont(name: variation, size: 16) != nil {
+                    print("✅ Using font for \(style): \(variation)")
+                    return variation
+                }
+            }
+            // Fallback to any available Alegreya font
+            for variation in allAlegreyaVariations {
+                if UIFont(name: variation, size: 16) != nil {
+                    print("⚠️ Fallback font for \(style): \(variation)")
+                    return variation
+                }
+            }
+            print("❌ No Alegreya fonts found for \(style), using Times-Bold")
+            return "Times-Bold" // System serif bold fallback
+            
+        case .title, .listTitle:
+            // Try Alegreya Medium/Regular variations
+            let mediumVariations = ["Alegreya-Medium", "alegreya_medium", "Alegreya Medium", "Alegreya-Regular", "Alegreya"]
+            for variation in mediumVariations {
+                if UIFont(name: variation, size: 16) != nil {
+                    print("✅ Using font for \(style): \(variation)")
+                    return variation
+                }
+            }
+            // Fallback to any available Alegreya font
+            for variation in allAlegreyaVariations {
+                if UIFont(name: variation, size: 16) != nil {
+                    print("⚠️ Fallback font for \(style): \(variation)")
+                    return variation
+                }
+            }
+            print("❌ No Alegreya fonts found for \(style), using Times-Roman")
+            return "Times-Roman" // System serif fallback
+            
+        case .smallCaps:
+            // Try Alegreya SC variations
+            let scVariations = ["Alegreya SC", "alegreya_sc_regular", "alegreya_sc_medium", "alegreya_sc_bold", "AlegreyaSC"]
+            for variation in scVariations {
+                if UIFont(name: variation, size: 16) != nil {
+                    print("✅ Using font for \(style): \(variation)")
+                    return variation
+                }
+            }
+            // Fallback to regular Alegreya if SC not available
+            for variation in allAlegreyaVariations {
+                if UIFont(name: variation, size: 16) != nil {
+                    print("⚠️ Fallback font for \(style): \(variation)")
+                    return variation
+                }
+            }
+            print("❌ No Alegreya fonts found for \(style), using Times-Roman")
+            return "Times-Roman" // System serif fallback
+            
+        case .body, .mono:
+            return "System" // These should use system fonts anyway
+        }
     }
     
     /// Get fallback fonts for OSRS styles when custom fonts aren't available

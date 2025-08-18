@@ -48,8 +48,35 @@ struct NewsView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("OSRS Wiki")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("OSRS Wiki")
+                        .font(.osrsDisplay)
+                        .foregroundStyle(.osrsOnSurface)
+                        .onAppear {
+                            // Print actual font being used
+                            let testFont = UIFont(name: "Alegreya-Bold", size: 32)
+                            print("🔍 FONT TEST - Alegreya-Bold available: \(testFont != nil)")
+                            if let font = testFont {
+                                print("   Font family: '\(font.familyName)' name: '\(font.fontName)'")
+                            }
+                            
+                            // Test what .osrsDisplay actually resolves to
+                            print("🔍 FONT TEST - .osrsDisplay should be using: Alegreya-Bold")
+                            print("🔍 FONT TEST - Available Alegreya fonts:")
+                            for family in UIFont.familyNames.sorted() {
+                                if family.lowercased().contains("alegreya") {
+                                    print("   Family: \(family)")
+                                    for fontName in UIFont.fontNames(forFamilyName: family) {
+                                        print("     Font: \(fontName)")
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
             .refreshable {
                 await viewModel.refresh()
             }
@@ -101,11 +128,11 @@ struct EmptyStateView: View {
             
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.headline)
+                    .font(.osrsHeadline)
                     .foregroundStyle(.osrsOnSurface)
                 
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.osrsBody)
                     .foregroundStyle(.osrsOnSurfaceVariant)
                     .multilineTextAlignment(.center)
             }
