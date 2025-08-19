@@ -48,6 +48,7 @@ struct AppearanceSettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .listRowBackground(osrsTheme.surface)
                     .osrsThemeTransition(transitionManager, animationIndex: themeSelection.hashValue)
                 }
             } header: {
@@ -57,6 +58,7 @@ struct AppearanceSettingsView: View {
             
             Section {
                 osrsThemePreviewCard(theme: themeManager.currentTheme)
+                    .listRowBackground(osrsTheme.surface)
             } header: {
                 Text("Current Theme Preview")
                     .foregroundStyle(.osrsOnSurfaceVariant)
@@ -85,6 +87,7 @@ struct AppearanceSettingsView: View {
                         .foregroundStyle(.osrsOnSurfaceVariant)
                 }
                 .padding(.vertical, 4)
+                .listRowBackground(osrsTheme.surface)
             } header: {
                 Text("About OSRS Theming")
                     .foregroundStyle(.osrsOnSurfaceVariant)

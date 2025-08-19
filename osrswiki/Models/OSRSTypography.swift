@@ -15,49 +15,79 @@ extension Font {
     
     /// Display style using Alegreya Bold - 32pt equivalent
     static let osrsDisplay: Font = {
-        let testFont = UIFont(name: "Alegreya-Bold", size: 32)
-        NSLog("OSRS FONT DEBUG: osrsDisplay - Alegreya-Bold available: \(testFont != nil)")
-        if testFont == nil {
-            NSLog("OSRS FONT DEBUG: osrsDisplay - FALLBACK to Times-Bold")
-            return Font.custom("Times-Bold", size: 32)
+        let fontNames = ["Alegreya-Bold", "alegreya_bold", "Alegreya Bold"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 32) != nil {
+                NSLog("OSRS FONT DEBUG: osrsDisplay - Using \(fontName)")
+                return Font.custom(fontName, size: 32)
+            }
         }
-        return Font.custom("Alegreya-Bold", size: 32)
+        NSLog("OSRS FONT DEBUG: osrsDisplay - FALLBACK to system bold")
+        return Font.system(size: 32, weight: .bold, design: .serif)
     }()
     
     // MARK: - Headlines (Section headers, major navigation)
     
     /// Headline style using Alegreya Bold - 28pt equivalent
     static let osrsHeadline: Font = {
-        let testFont = UIFont(name: "Alegreya-Bold", size: 28)
-        NSLog("OSRS FONT DEBUG: osrsHeadline - Alegreya-Bold available: \(testFont != nil)")
-        if testFont == nil {
-            NSLog("OSRS FONT DEBUG: osrsHeadline - FALLBACK to Times-Bold")
-            return Font.custom("Times-Bold", size: 28)
+        let fontNames = ["Alegreya-Bold", "alegreya_bold", "Alegreya Bold"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 28) != nil {
+                NSLog("OSRS FONT DEBUG: osrsHeadline - Using \(fontName)")
+                return Font.custom(fontName, size: 28)
+            }
         }
-        return Font.custom("Alegreya-Bold", size: 28)
+        NSLog("OSRS FONT DEBUG: osrsHeadline - FALLBACK to system bold")
+        return Font.system(size: 28, weight: .bold, design: .serif)
     }()
     
     // MARK: - Titles (Card titles, page titles, important text)
     
     /// Title style using Alegreya Medium - 20pt equivalent
     static let osrsTitle: Font = {
-        let testFont = UIFont(name: "Alegreya-Medium", size: 20)
-        NSLog("OSRS FONT DEBUG: osrsTitle - Alegreya-Medium available: \(testFont != nil)")
-        if testFont == nil {
-            NSLog("OSRS FONT DEBUG: osrsTitle - FALLBACK to Courier (monospace - should be obvious)")
-            return Font.custom("Courier", size: 20)
+        let fontNames = ["Alegreya-Medium", "alegreya_medium", "Alegreya Medium", "Alegreya-Regular", "Alegreya Regular"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 20) != nil {
+                NSLog("OSRS FONT DEBUG: osrsTitle - Using \(fontName)")
+                return Font.custom(fontName, size: 20)
+            }
         }
-        return Font.custom("Alegreya-Medium", size: 20)
+        NSLog("OSRS FONT DEBUG: osrsTitle - FALLBACK to system medium")
+        return Font.system(size: 20, weight: .medium, design: .serif)
     }()
     
     /// Title Bold style using Alegreya Bold - 20pt equivalent
-    static let osrsTitleBold = Font.custom("Alegreya-Bold", size: 20)
+    static let osrsTitleBold: Font = {
+        let fontNames = ["Alegreya-Bold", "alegreya_bold", "Alegreya Bold"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 20) != nil {
+                return Font.custom(fontName, size: 20)
+            }
+        }
+        return Font.system(size: 20, weight: .bold, design: .serif)
+    }()
     
     /// List title style using Alegreya Medium - 20pt equivalent
-    static let osrsListTitle = Font.custom("Alegreya-Medium", size: 20)
+    static let osrsListTitle: Font = {
+        let fontNames = ["Alegreya-Medium", "alegreya_medium", "Alegreya Medium", "Alegreya-Regular", "Alegreya Regular"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 20) != nil {
+                return Font.custom(fontName, size: 20)
+            }
+        }
+        return Font.system(size: 20, weight: .medium, design: .serif)
+    }()
     
     /// List title bold style using Alegreya Bold - 20pt equivalent
-    static let osrsListTitleBold = Font.custom("Alegreya-Bold", size: 20)
+    static let osrsListTitleBold: Font = {
+        let fontNames = ["Alegreya-Bold", "alegreya_bold", "Alegreya Bold"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 20) != nil {
+                return Font.custom(fontName, size: 20)
+            }
+        }
+        return Font.system(size: 20, weight: .bold, design: .serif)
+    }()
     
     // MARK: - Body Text (Article content, descriptions, longer text)
     
@@ -106,19 +136,59 @@ extension Font {
     // MARK: - Small Caps Styles (Using Alegreya SC when available)
     
     /// Navigation small caps using Alegreya SC - 12pt equivalent
-    static let osrsNavigationSmallCaps = Font.custom("AlegreyaSC-Regular", size: 12)
+    static let osrsNavigationSmallCaps: Font = {
+        let fontNames = ["AlegreyaSC-Regular", "alegreya_sc_regular", "Alegreya SC Regular", "Alegreya SC"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 12) != nil {
+                return Font.custom(fontName, size: 12)
+            }
+        }
+        return Font.system(size: 12, weight: .medium)
+    }()
     
-    /// Section header small caps using Alegreya SC Bold - 24pt equivalent
-    static let osrsSectionHeaderSmallCaps = Font.custom("AlegreyaSC-Bold", size: 24)
+    /// Section header small caps using Alegreya SC Bold - 14pt equivalent (used for section headers)
+    static let osrsSectionHeaderSmallCaps: Font = {
+        let fontNames = ["AlegreyaSC-Bold", "alegreya_sc_bold", "Alegreya SC Bold", "alegreya_sc_medium", "AlegreyaSC-Medium"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 14) != nil {
+                return Font.custom(fontName, size: 14)
+            }
+        }
+        return Font.system(size: 14, weight: .bold)
+    }()
     
     /// Metadata small caps using Alegreya SC - 12pt equivalent
-    static let osrsMetadataSmallCaps = Font.custom("AlegreyaSC-Regular", size: 12)
+    static let osrsMetadataSmallCaps: Font = {
+        let fontNames = ["AlegreyaSC-Regular", "alegreya_sc_regular", "Alegreya SC Regular", "Alegreya SC"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 12) != nil {
+                return Font.custom(fontName, size: 12)
+            }
+        }
+        return Font.system(size: 12, weight: .medium)
+    }()
     
     /// Button small caps using Alegreya SC - 13pt equivalent
-    static let osrsButtonSmallCaps = Font.custom("AlegreyaSC-Regular", size: 13)
+    static let osrsButtonSmallCaps: Font = {
+        let fontNames = ["AlegreyaSC-Regular", "alegreya_sc_regular", "Alegreya SC Regular", "Alegreya SC"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 13) != nil {
+                return Font.custom(fontName, size: 13)
+            }
+        }
+        return Font.system(size: 13, weight: .medium)
+    }()
     
     /// Tag small caps using Alegreya SC - 13pt equivalent
-    static let osrsTagSmallCaps = Font.custom("AlegreyaSC-Regular", size: 13)
+    static let osrsTagSmallCaps: Font = {
+        let fontNames = ["AlegreyaSC-Regular", "alegreya_sc_regular", "Alegreya SC Regular", "Alegreya SC"]
+        for fontName in fontNames {
+            if UIFont(name: fontName, size: 13) != nil {
+                return Font.custom(fontName, size: 13)
+            }
+        }
+        return Font.system(size: 13, weight: .medium)
+    }()
     
     // MARK: - UI Specific Styles
     

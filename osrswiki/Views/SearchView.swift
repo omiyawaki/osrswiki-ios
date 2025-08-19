@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct SearchView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var themeManager: osrsThemeManager
     @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = SearchViewModel()
+    @StateObject private var speechManager = osrsSpeechRecognitionManager()
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
     
@@ -27,19 +29,28 @@ struct SearchView: View {
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.large)
             .background(.osrsBackground)
-            .navigationDestination(for: ArticleDestination.self) { destination in
-                ArticleView(pageTitle: destination.title, pageUrl: destination.url)
-            }
             .onAppear {
                 // Set up navigation callback
                 viewModel.navigateToArticle = { title, url in
                     appState.navigateToArticle(title: title, url: url)
                 }
                 
+                // Set up voice search callbacks
+                setupVoiceSearch()
+                
                 // Auto-focus search when switching to this tab (matches Android behavior)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isSearchFocused = true
+                    
+                    // Force keyboard to appear like Android's showSoftInput
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        UIApplication.shared.sendAction(#selector(UIResponder.becomeFirstResponder), to: nil, from: nil, for: nil)
+                    }
                 }
+            }
+            .onDisappear {
+                // Clean up speech recognition when leaving the view
+                speechManager.cleanup()
             }
         }
     }
@@ -61,6 +72,15 @@ struct SearchView: View {
                     .onSubmit {
                         performSearch()
                     }
+                    .onTapGesture {
+                        // Force focus and keyboard when tapped (matches Android behavior)
+                        isSearchFocused = true
+                        
+                        // Additional keyboard forcing - similar to Android's showSoftInput
+                        DispatchQueue.main.async {
+                            UIApplication.shared.sendAction(#selector(UIResponder.becomeFirstResponder), to: nil, from: nil, for: nil)
+                        }
+                    }
                 
                 if !searchText.isEmpty {
                     Button(action: clearSearch) {
@@ -69,13 +89,12 @@ struct SearchView: View {
                     }
                 }
                 
-                Button(action: {
-                    // Voice search placeholder
-                    appState.showError("Voice search not yet implemented")
-                }) {
-                    Image(systemName: "mic")
-                        .foregroundStyle(.osrsOnSurfaceVariant)
-                }
+                osrsVoiceSearchButton(
+                    action: {
+                        speechManager.startVoiceRecognition()
+                    },
+                    state: speechManager.currentState
+                )
             }
             .padding()
             .background(.osrsSurfaceVariant)
@@ -117,6 +136,15 @@ struct SearchView: View {
             }
         } message: {
             if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+            }
+        }
+        .alert("Voice Search Error", isPresented: .constant(speechManager.errorMessage != nil)) {
+            Button("OK") {
+                speechManager.errorMessage = nil
+            }
+        } message: {
+            if let errorMessage = speechManager.errorMessage {
                 Text(errorMessage)
             }
         }
@@ -169,9 +197,16 @@ struct SearchView: View {
                     subtitle: "Your search history will appear here"
                 )
                 .listRowSeparator(.hidden)
+                .listRowBackground(osrsTheme.surface)
             } else {
                 ForEach(viewModel.searchHistory) { historyItem in
-                    HistoryRowView(historyItem: historyItem) {
+                    HistoryRowView(historyItem: ThemedHistoryItem(
+                        pageTitle: historyItem.displayTitle,
+                        pageUrl: historyItem.pageUrl.absoluteString,
+                        snippet: historyItem.description,
+                        timestamp: historyItem.visitedDate,
+                        source: 1
+                    )) {
                         // Navigate to page using the article viewer
                         appState.navigateToArticle(title: historyItem.pageTitle, url: historyItem.pageUrl)
                     }
@@ -182,26 +217,22 @@ struct SearchView: View {
             }
         }
         .listStyle(PlainListStyle())
+        .scrollContentBackground(.hidden)
+        .background(.osrsBackground)
     }
     
     private var searchResultsSection: some View {
         VStack(spacing: 0) {
-            // Results summary
-            if viewModel.totalResultCount > 0 {
-                HStack {
-                    Text("\(viewModel.totalResultCount) results")
-                        .font(.caption)
-                        .foregroundStyle(.osrsOnSurfaceVariant)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.osrsSurfaceVariant)
-            }
-            
             List {
                 ForEach(viewModel.searchResults) { result in
-                    SearchResultRowView(result: result) {
+                    SearchResultRowView(result: ThemedSearchResult(
+                        title: result.displayTitle,
+                        snippet: result.rawSnippet, // Use raw HTML snippet for highlighting
+                        description: result.namespace,
+                        url: result.url.absoluteString,
+                        thumbnailUrl: result.thumbnailUrl,
+                        pageId: nil
+                    )) {
                         viewModel.selectSearchResult(result)
                         viewModel.addToRecentSearches(searchText)
                     }
@@ -214,6 +245,7 @@ struct SearchView: View {
                         if viewModel.isSearching {
                             ProgressView()
                                 .scaleEffect(0.8)
+                                .tint(osrsTheme.primary)
                         } else {
                             Button("Load More Results") {
                                 Task {
@@ -225,6 +257,7 @@ struct SearchView: View {
                         Spacer()
                     }
                     .padding()
+                    .listRowBackground(osrsTheme.surface)
                     .onAppear {
                         Task {
                             await viewModel.loadMoreResults()
@@ -233,6 +266,8 @@ struct SearchView: View {
                 }
             }
             .listStyle(PlainListStyle())
+            .scrollContentBackground(.hidden)
+            .background(.osrsBackground)
         }
     }
     
@@ -251,6 +286,28 @@ struct SearchView: View {
         searchText = ""
         viewModel.currentQuery = ""
         viewModel.clearSearchResults()
+    }
+    
+    private func setupVoiceSearch() {
+        speechManager.configure(
+            onResult: { result in
+                // Set the search text and perform search
+                searchText = result
+                viewModel.currentQuery = result
+                performSearch()
+            },
+            onPartialResult: { partialResult in
+                // Show real-time transcription in search field
+                if !partialResult.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    searchText = partialResult
+                    viewModel.currentQuery = partialResult
+                }
+            },
+            onError: { errorMessage in
+                // Error handling is managed by the speech manager's published errorMessage
+                print("Voice search error: \(errorMessage)")
+            }
+        )
     }
 }
 

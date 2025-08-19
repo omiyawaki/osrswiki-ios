@@ -14,62 +14,62 @@ struct ArticleView: View {
     @State private var isShowingShareSheet = false
     @State private var isShowingTableOfContents = false
     
-    let pageTitle: String
+    let pageTitle: String?
     let pageUrl: URL
     
-    init(pageTitle: String, pageUrl: URL) {
+    init(pageTitle: String?, pageUrl: URL) {
         self.pageTitle = pageTitle
         self.pageUrl = pageUrl
-        self._viewModel = StateObject(wrappedValue: ArticleViewModel(pageUrl: pageUrl))
+        self._viewModel = StateObject(wrappedValue: ArticleViewModel(pageUrl: pageUrl, pageTitle: pageTitle, pageId: nil))
+        print("🏗️ ArticleView: Created with title='\(pageTitle ?? "nil")' url=\(pageUrl)")
     }
     
     var body: some View {
-        ZStack {
-            // Background
-            Color.osrsBackgroundColor
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            // Progress bar
+            if viewModel.isLoading {
+                ProgressView(value: viewModel.loadingProgress, total: 1.0)
+                    .progressViewStyle(LinearProgressViewStyle())
+                    .transition(.opacity)
+            }
             
-            VStack(spacing: 0) {
-                // Progress bar
-                if viewModel.isLoading {
-                    ProgressView(value: viewModel.loadingProgress, total: 1.0)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .transition(.opacity)
+            // WebView content
+            ArticleWebView(viewModel: viewModel)
+                .background(Color.osrsBackgroundColor)
+            
+            // Bottom Action Bar - replicating Android functionality
+            osrsArticleBottomBar(
+                onSaveAction: {
+                    viewModel.performSaveAction()
+                },
+                onFindInPageAction: {
+                    viewModel.performFindInPageAction()
+                },
+                onAppearanceAction: {
+                    viewModel.performAppearanceAction()
+                },
+                onContentsAction: {
+                    isShowingTableOfContents = true
+                },
+                isBookmarked: viewModel.isBookmarked,
+                saveState: viewModel.saveState,
+                saveProgress: viewModel.saveProgress,
+                hasTableOfContents: viewModel.hasTableOfContents
+            )
+        }
+        .background(Color.osrsBackgroundColor)
+        .navigationTitle(pageTitle ?? "Article")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                // Keep only share button in top toolbar to maintain some utility
+                Button(action: {
+                    isShowingShareSheet = true
+                }) {
+                    Image(systemName: "square.and.arrow.up")
                 }
-                
-                // WebView content
-                ArticleWebView(viewModel: viewModel)
             }
         }
-        .navigationTitle(pageTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(false)
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    // Save/Bookmark button
-                    Button(action: {
-                        viewModel.toggleBookmark()
-                    }) {
-                        Image(systemName: viewModel.isBookmarked ? "bookmark.fill" : "bookmark")
-                            .foregroundColor(viewModel.isBookmarked ? .yellow : .primary)
-                    }
-                    
-                    // Table of contents button
-                    Button(action: {
-                        isShowingTableOfContents = true
-                    }) {
-                        Image(systemName: "list.bullet")
-                    }
-                    .disabled(!viewModel.hasTableOfContents)
-                    
-                    // Share button
-                    Button(action: {
-                        isShowingShareSheet = true
-                    }) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                }
-            }
             .sheet(isPresented: $isShowingShareSheet) {
                 ShareSheet(items: [pageUrl])
             }
@@ -92,7 +92,12 @@ struct ArticleView: View {
                 }
             }
         .onAppear {
-            viewModel.loadArticle()
+            print("📱 ArticleView: onAppear called - loading article")
+            viewModel.loadArticle(theme: osrsTheme)
+        }
+        .onChange(of: osrsTheme as? osrsLightTheme != nil) { _, _ in
+            // Reload with new theme when theme changes
+            viewModel.loadArticle(theme: osrsTheme)
         }
     }
 }

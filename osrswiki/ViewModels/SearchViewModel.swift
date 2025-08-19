@@ -212,7 +212,8 @@ class SearchViewModel: ObservableObject {
 struct SearchResult: Identifiable, Codable {
     let id: String
     let title: String
-    let description: String?
+    let description: String? // HTML-stripped version for fallback
+    let rawSnippet: String? // Raw HTML snippet with <span class="searchmatch"> tags
     let url: URL
     var thumbnailUrl: URL? // Made mutable for batch thumbnail updates
     let ns: Int? // Namespace ID to match Android exactly
@@ -247,113 +248,3 @@ struct HistoryItem: Identifiable, Codable {
     }
 }
 
-struct HistoryRowView: View {
-    let historyItem: HistoryItem
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                // Thumbnail or icon
-                AsyncImage(url: historyItem.thumbnailUrl) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Image(systemName: "doc.text")
-                        .foregroundColor(.secondary)
-                }
-                .frame(width: 40, height: 40)
-                .background(Color(.systemGray6))
-                .cornerRadius(6)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(historyItem.displayTitle)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    
-                    HStack {
-                        Text(historyItem.timeAgo)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        if let description = historyItem.description {
-                            Text("• \(description)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-struct SearchResultRowView: View {
-    let result: SearchResult
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                // Thumbnail or icon
-                AsyncImage(url: result.thumbnailUrl) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Image(systemName: "doc.text")
-                        .foregroundColor(.secondary)
-                }
-                .frame(width: 48, height: 48)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(result.displayTitle)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    
-                    if let description = result.description {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                    }
-                    
-                    if let namespace = result.namespace {
-                        Text(namespace)
-                            .font(.caption)
-                            .foregroundColor(.accentColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.1))
-                            .cornerRadius(4)
-                    }
-                }
-                
-                Spacer()
-                
-                Image(systemName: "arrow.up.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}

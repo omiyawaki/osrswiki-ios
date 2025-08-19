@@ -10,6 +10,7 @@ import Combine
 
 @MainActor
 class NewsViewModel: ObservableObject {
+    @Published var wikiFeed: WikiFeed?
     @Published var newsItems: [NewsItem] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -22,10 +23,16 @@ class NewsViewModel: ObservableObject {
         errorMessage = nil
         
         do {
+            // Fetch the WikiFeed directly
+            let fetchedFeed = try await newsRepository.fetchWikiFeed()
+            self.wikiFeed = fetchedFeed
+            
+            // Still keep newsItems for backwards compatibility
             newsItems = try await newsRepository.fetchLatestNews()
         } catch {
             errorMessage = "Failed to load news: \(error.localizedDescription)"
             newsItems = []
+            wikiFeed = nil
         }
         
         isLoading = false
@@ -163,4 +170,39 @@ struct NewsCardView: View {
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
+}
+
+// MARK: - Wiki Feed Data Models (matching Android structure)
+
+struct WikiFeed {
+    let recentUpdates: [UpdateItem]
+    let announcements: [AnnouncementItem]
+    let onThisDay: OnThisDayItem?
+    let popularPages: [PopularPageItem]
+}
+
+struct UpdateItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let snippet: String
+    let imageUrl: String
+    let articleUrl: String
+}
+
+struct AnnouncementItem: Identifiable {
+    let id = UUID()
+    let date: String
+    let content: String
+}
+
+struct OnThisDayItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let events: [String]
+}
+
+struct PopularPageItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let pageUrl: String
 }

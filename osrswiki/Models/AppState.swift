@@ -17,8 +17,13 @@ class AppState: ObservableObject {
     // Navigation state
     @Published var navigationPath = NavigationPath()
     
+    // Full screen article presentation
+    @Published var showingFullScreenArticle = false
+    @Published var fullScreenArticleDestination: ArticleDestination?
+    
     init() {
         loadUserPreferences()
+        handleLaunchArguments()
     }
     
     private func loadUserPreferences() {
@@ -46,10 +51,45 @@ class AppState: ObservableObject {
         errorMessage = nil
     }
     
-    // Article navigation methods
+    private func handleLaunchArguments() {
+        let arguments = ProcessInfo.processInfo.arguments
+        
+        // Check for direct tab launch arguments
+        // Usage: -startTab <tab_name>
+        if let startTabIndex = arguments.firstIndex(of: "-startTab"),
+           startTabIndex + 1 < arguments.count {
+            let tabName = arguments[startTabIndex + 1]
+            if let tab = TabItem(rawValue: tabName) {
+                selectedTab = tab
+                print("🚀 Launch argument: starting with \(tab.title) tab")
+            }
+        }
+        
+        // Check for screenshot mode (automatically takes screenshots of all tabs)
+        if arguments.contains("-screenshotMode") {
+            print("🧪 Screenshot mode enabled")
+            // This will be handled by the screenshot automation script
+        }
+    }
+    
+    // Article navigation methods - now using full screen presentation
     func navigateToArticle(title: String, url: URL) {
         let destination = ArticleDestination(title: title, url: url)
-        navigationPath.append(destination)
+        fullScreenArticleDestination = destination
+        showingFullScreenArticle = true
+    }
+    
+    // URL-only navigation (like Android) - extracts title from URL
+    func navigateToArticle(url: URL) {
+        let destination = ArticleDestination(title: nil, url: url)
+        fullScreenArticleDestination = destination
+        showingFullScreenArticle = true
+    }
+    
+    // Close full screen article
+    func closeFullScreenArticle() {
+        showingFullScreenArticle = false
+        fullScreenArticleDestination = nil
     }
     
     func navigateBack() {
@@ -61,7 +101,7 @@ class AppState: ObservableObject {
 
 // Navigation destinations
 struct ArticleDestination: Hashable {
-    let title: String
+    let title: String?  // Optional - will be extracted from URL if nil
     let url: URL
     
     func hash(into hasher: inout Hasher) {

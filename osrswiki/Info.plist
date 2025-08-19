@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OSRS Wiki needs microphone access to provide voice search functionality.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>OSRS Wiki uses speech recognition to convert your voice to text for searching the wiki.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>alegreya_black.ttf</string>

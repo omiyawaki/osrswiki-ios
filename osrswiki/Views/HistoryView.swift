@@ -10,13 +10,25 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(\.osrsTheme) var osrsTheme
     @StateObject private var viewModel = HistoryViewModel()
-    @State private var searchText = ""
     @State private var showingClearConfirmation = false
+    @State private var showingSearchModal = false
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                searchBar
+                // Custom header matching NewsView layout
+                HistoryHeaderView(
+                    onClearHistory: { showingClearConfirmation = true },
+                    onExportHistory: { viewModel.exportHistory() }
+                )
+                
+                // Search bar at top (matches Android and home page)
+                SearchBarView(placeholder: "Search OSRS Wiki") {
+                    // Show DedicatedSearchView modal (same as home page)
+                    showingSearchModal = true
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
                 
                 if viewModel.historyEntries.isEmpty {
                     emptyStateView
@@ -24,24 +36,9 @@ struct HistoryView: View {
                     historyList
                 }
             }
-            .navigationTitle("Reading History")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarHidden(true)
             .background(.osrsBackground)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button("Clear All History", role: .destructive) {
-                            showingClearConfirmation = true
-                        }
-                        Button("Export History") {
-                            viewModel.exportHistory()
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: "Search history...")
             .onAppear {
                 viewModel.loadHistory()
             }
@@ -53,59 +50,27 @@ struct HistoryView: View {
             } message: {
                 Text("This will permanently delete all your reading history. This action cannot be undone.")
             }
-        }
-    }
-    
-    private var searchBar: some View {
-        HStack {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                
-                TextField("Search pages...", text: $searchText)
-                    .textFieldStyle(PlainTextFieldStyle())
-                
-                if !searchText.isEmpty {
-                    Button(action: {
-                        searchText = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-            
-            Button(action: {
-                // TODO: Implement voice search
-            }) {
-                Image(systemName: "mic.fill")
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 8)
+            .fullScreenCover(isPresented: $showingSearchModal) {
+                // Dedicated search modal (matches home page behavior)
+                DedicatedSearchView(isPresented: $showingSearchModal)
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.osrsBackground)
     }
     
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Image(systemName: "clock.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsOnSurfaceVariant)
             
             Text("No History Yet")
                 .font(.title2)
                 .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .foregroundStyle(.osrsOnSurface)
             
             Text("Pages you visit will appear here for easy access later.")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
             
@@ -115,10 +80,10 @@ struct HistoryView: View {
             }) {
                 Text("Start Browsing")
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.osrsOnPrimary)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(Color.blue)
+                    .background(.osrsPrimary)
                     .cornerRadius(8)
             }
         }
@@ -128,11 +93,11 @@ struct HistoryView: View {
     
     private var historyList: some View {
         List {
-            ForEach(filteredHistoryEntries) { entry in
+            ForEach(viewModel.historyEntries) { entry in
                 HistoryEntryRowView(entry: entry) {
                     viewModel.removeHistoryEntry(entry)
                 }
-                .listRowBackground(Color.osrsBackgroundColor)
+                .listRowBackground(osrsTheme.surface)
             }
             .onDelete(perform: deleteEntries)
         }
@@ -142,26 +107,50 @@ struct HistoryView: View {
         }
     }
     
-    private var filteredHistoryEntries: [ReadingHistoryEntry] {
-        if searchText.isEmpty {
-            return viewModel.historyEntries
-        } else {
-            return viewModel.historyEntries.filter { entry in
-                entry.displayText.localizedCaseInsensitiveContains(searchText) ||
-                (entry.snippet?.localizedCaseInsensitiveContains(searchText) ?? false)
-            }
-        }
-    }
     
     private func deleteEntries(at offsets: IndexSet) {
-        let entriesToDelete = offsets.map { filteredHistoryEntries[$0] }
+        let entriesToDelete = offsets.map { viewModel.historyEntries[$0] }
         for entry in entriesToDelete {
             viewModel.removeHistoryEntry(entry)
         }
     }
 }
 
+struct HistoryHeaderView: View {
+    let onClearHistory: () -> Void
+    let onExportHistory: () -> Void
+    
+    var body: some View {
+        HStack {
+            // Left-aligned "History" title matching NewsView HeaderView
+            Text("History")
+                .font(.osrsDisplay)
+                .foregroundStyle(.osrsOnSurface)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Right-aligned menu button (matches the ellipsis menu)
+            Menu {
+                Button("Clear All History", role: .destructive) {
+                    onClearHistory()
+                }
+                Button("Export History") {
+                    onExportHistory()
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .frame(width: 48, height: 48)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.osrsBackground)
+    }
+}
+
 struct HistoryEntryRowView: View {
+    @Environment(\.osrsTheme) var osrsTheme
     let entry: ReadingHistoryEntry
     let onDelete: () -> Void
     
@@ -174,11 +163,11 @@ struct HistoryEntryRowView: View {
                     .aspectRatio(contentMode: .fill)
             } placeholder: {
                 Image(systemName: "doc.text.fill")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsOnSurfaceVariant)
                     .font(.title2)
             }
             .frame(width: 44, height: 44)
-            .background(Color(.systemGray6))
+            .background(.osrsSurfaceVariant)
             .cornerRadius(8)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -186,29 +175,29 @@ struct HistoryEntryRowView: View {
                     .font(.body)
                     .fontWeight(.medium)
                     .lineLimit(2)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsOnSurface)
                 
                 if let snippet = entry.snippet, !snippet.isEmpty {
                     Text(snippet)
                         .font(.caption)
                         .lineLimit(2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsTextSecondary)
                 }
                 
                 HStack {
                     Text(entry.sourceDescription)
                         .font(.caption2)
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.osrsPrimary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.1))
+                        .background(.osrsPrimaryContainer)
                         .cornerRadius(4)
                     
                     Spacer()
                     
                     Text(entry.timestamp, style: .relative)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsTextSecondary)
                 }
             }
             

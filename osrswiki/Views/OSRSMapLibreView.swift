@@ -36,26 +36,27 @@ struct osrsMapLibreView: View {
                 osrsMapLibreMapView(currentFloor: $currentFloor)
                     .ignoresSafeArea(.all, edges: .top)
                 
-                // Floor controls overlay
+                // Floor controls and compass overlay
                 VStack {
-                    HStack {
+                    HStack(alignment: .top) {
                         osrsFloorControlsView(
                             currentFloor: $currentFloor,
                             maxFloor: maxFloor
                         )
-                        .padding()
+                        .padding(.leading, 16)
+                        .padding(.top, 60) // Position where title used to be
                         
                         Spacer()
                         
-                        // Map controls will be added later
-                        Spacer()
+                        osrsCompassView()
+                            .padding(.trailing, 16)
+                            .padding(.top, 60) // Align with floor controls
                     }
                     
                     Spacer()
                 }
             }
-            .navigationTitle("OSRS Map")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
             .background(.osrsBackground)
         }
     }
@@ -75,32 +76,74 @@ struct osrsMapLibreView: View {
 struct osrsFloorControlsView: View {
     @Binding var currentFloor: Int
     let maxFloor: Int
+    @Environment(\.osrsTheme) var osrsTheme
     
     var body: some View {
-        VStack(spacing: 8) {
-            Text("Floor")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 4) {
-                ForEach((0...maxFloor).reversed(), id: \.self) { floor in
-                    Button(action: {
-                        currentFloor = floor
-                    }) {
-                        Text("\(floor)")
-                            .font(.system(size: 14, weight: .medium))
-                            .frame(width: 32, height: 32)
-                            .background(currentFloor == floor ? Color.blue : Color.gray.opacity(0.3))
-                            .foregroundColor(currentFloor == floor ? .white : .primary)
-                            .cornerRadius(6)
-                    }
+        VStack(spacing: 4) {
+            // Up arrow button
+            Button(action: {
+                if currentFloor < maxFloor {
+                    currentFloor += 1
                 }
+            }) {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 16, weight: .medium))
+                    .frame(width: 40, height: 40)
+                    .foregroundColor(osrsTheme.onSurface)
+                    .background(Color.clear)
+            }
+            .disabled(currentFloor >= maxFloor)
+            .opacity(currentFloor >= maxFloor ? 0.5 : 1.0)
+            
+            // Floor number display
+            Text("\(currentFloor)")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(osrsTheme.onSurface)
+                .frame(width: 40, height: 28)
+                .padding(.vertical, 4)
+            
+            // Down arrow button
+            Button(action: {
+                if currentFloor > 0 {
+                    currentFloor -= 1
+                }
+            }) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 16, weight: .medium))
+                    .frame(width: 40, height: 40)
+                    .foregroundColor(osrsTheme.onSurface)
+                    .background(Color.clear)
+            }
+            .disabled(currentFloor <= 0)
+            .opacity(currentFloor <= 0 ? 0.5 : 1.0)
+        }
+        .padding(4)
+        .background(osrsTheme.surface.opacity(0.9))
+        .cornerRadius(8)
+        .shadow(radius: 4)
+    }
+}
+
+struct osrsCompassView: View {
+    @State private var heading: Double = 0
+    @Environment(\.osrsTheme) var osrsTheme
+    
+    var body: some View {
+        Button(action: {
+            // Reset rotation to north - this would be implemented with map delegate
+        }) {
+            ZStack {
+                Circle()
+                    .fill(osrsTheme.surface.opacity(0.9))
+                    .frame(width: 40, height: 40)
+                    .shadow(radius: 4)
+                
+                Image(systemName: "location.north.fill")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(osrsTheme.onSurface)
+                    .rotationEffect(.degrees(-heading))
             }
         }
-        .padding(8)
-        .background(Color(.systemBackground).opacity(0.9))
-        .cornerRadius(8)
-        .shadow(radius: 2)
     }
 }
 
@@ -114,9 +157,9 @@ struct osrsMapLibreMapView: UIViewRepresentable {
         // Configure MapLibre settings
         mapView.logoView.isHidden = true
         mapView.attributionButton.isHidden = true
-        mapView.compassView.isHidden = false
+        mapView.compassView.isHidden = true
         mapView.showsScale = false
-        mapView.allowsRotating = false
+        mapView.allowsRotating = true
         mapView.allowsTilting = false
         
         // Set initial camera position to Lumbridge (game coordinates 3234, 3230)

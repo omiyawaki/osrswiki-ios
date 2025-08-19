@@ -96,7 +96,8 @@ class SearchRepository {
                 SearchResult(
                     id: String(apiResult.pageid),
                     title: apiResult.title,
-                    description: apiResult.snippet?.htmlStripped(),
+                    description: apiResult.snippet?.htmlStripped(), // HTML-stripped for fallback
+                    rawSnippet: apiResult.snippet, // Raw HTML with <span class="searchmatch"> tags
                     url: URL(string: "https://oldschool.runescape.wiki/w/\(apiResult.title.replacingOccurrences(of: " ", with: "_"))")!,
                     thumbnailUrl: nil, // Will be set in step 2
                     ns: apiResult.ns, // Include namespace ID to match Android

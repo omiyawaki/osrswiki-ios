@@ -30,6 +30,56 @@ final class osrswikiUITests: XCTestCase {
 
         // Use XCTAssert and related functions to verify your tests produce the correct results.
     }
+    
+    @MainActor
+    func testNavigateToMoreTab() throws {
+        let app = XCUIApplication()
+        app.launch()
+        
+        // Wait for the tab bar to appear
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
+        
+        // Tap the More tab
+        let moreTab = tabBar.buttons["More"]
+        XCTAssertTrue(moreTab.exists)
+        moreTab.tap()
+        
+        // Wait for the More view to appear
+        let moreNavigationBar = app.navigationBars["More"]
+        XCTAssertTrue(moreNavigationBar.waitForExistence(timeout: 5))
+        
+        // Take a screenshot
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "More Tab Screenshot"
+        add(screenshot)
+    }
+    
+    @MainActor
+    func testNavigateToAppearanceSettings() throws {
+        let app = XCUIApplication()
+        app.launch()
+        
+        // Navigate to More tab
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
+        let moreTab = tabBar.buttons["More"]
+        moreTab.tap()
+        
+        // Tap on Appearance settings
+        let appearanceRow = app.buttons["Appearance"]
+        XCTAssertTrue(appearanceRow.waitForExistence(timeout: 5))
+        appearanceRow.tap()
+        
+        // Wait for Appearance view to load
+        let appearanceNav = app.navigationBars["Appearance"]
+        XCTAssertTrue(appearanceNav.waitForExistence(timeout: 5))
+        
+        // Take screenshot of Appearance Settings
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Appearance Settings Screenshot"
+        add(screenshot)
+    }
 
     @MainActor
     func testLaunchPerformance() throws {
