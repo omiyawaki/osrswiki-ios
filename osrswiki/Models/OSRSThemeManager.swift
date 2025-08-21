@@ -20,22 +20,22 @@ enum osrsThemeSelection: String, CaseIterable {
     var displayName: String {
         switch self {
         case .automatic:
-            return "Automatic"
+            return "Follow system"
         case .osrsLight:
-            return "OSRS Light"
+            return "Light"
         case .osrsDark:
-            return "OSRS Dark"
+            return "Dark"
         }
     }
     
     var description: String {
         switch self {
         case .automatic:
-            return "Follows system Light/Dark mode with OSRS colors"
+            return "Follows your system setting"
         case .osrsLight:
-            return "Light OSRS theme with parchment backgrounds"
+            return "Clean and bright interface"
         case .osrsDark:
-            return "Dark OSRS theme with aged parchment backgrounds"
+            return "Easy on the eyes in low light"
         }
     }
     
@@ -88,16 +88,25 @@ class osrsThemeManager: ObservableObject {
     /// System color scheme tracking
     @Published private(set) var systemColorScheme: ColorScheme = .light
     
+    /// Collapse tables setting
+    @Published var collapseTables: Bool = true {
+        didSet {
+            saveCollapseTablesSettings()
+        }
+    }
+    
     // MARK: - Private Properties
     
     private let userDefaults = UserDefaults.standard
     private let themeSelectionKey = "osrs_theme_selection"
+    private let collapseTablesKey = "collapseTables"
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     
     init() {
         loadSavedTheme()
+        loadCollapseTablesSettings()
         updateCurrentTheme()
         setupSystemColorSchemeObserver()
     }
@@ -113,6 +122,11 @@ class osrsThemeManager: ObservableObject {
     func updateSystemColorScheme(_ colorScheme: ColorScheme) {
         systemColorScheme = colorScheme
         updateCurrentTheme()
+    }
+    
+    /// Set the collapse tables setting and persist it
+    func setCollapseTables(_ enabled: Bool) {
+        collapseTables = enabled
     }
     
     /// Get theme colors for WebView JavaScript injection
@@ -159,6 +173,18 @@ class osrsThemeManager: ObservableObject {
         userDefaults.set(selectedTheme.rawValue, forKey: themeSelectionKey)
     }
     
+    private func loadCollapseTablesSettings() {
+        collapseTables = userDefaults.bool(forKey: collapseTablesKey)
+        // Default to true if no setting exists
+        if !userDefaults.objectExists(forKey: collapseTablesKey) {
+            collapseTables = true
+        }
+    }
+    
+    private func saveCollapseTablesSettings() {
+        userDefaults.set(collapseTables, forKey: collapseTablesKey)
+    }
+    
     private func updateCurrentTheme() {
         let resolvedColorScheme = selectedTheme == .automatic ? systemColorScheme : nil
         currentTheme = selectedTheme.theme(for: resolvedColorScheme)
@@ -196,6 +222,15 @@ struct WebViewThemeColors {
         document.documentElement.style.setProperty('--color-primary', '\(primary)');
         document.documentElement.style.setProperty('--color-background', '\(background)');
         """
+    }
+}
+
+// MARK: - UserDefaults Extension
+
+extension UserDefaults {
+    /// Check if an object exists for the given key
+    func objectExists(forKey key: String) -> Bool {
+        return object(forKey: key) != nil
     }
 }
 

@@ -31,5 +31,16 @@
 		<string>runescape_bold.ttf</string>
 		<string>runescape_plain.ttf</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>OSRS Wiki Assets</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>app-assets</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -14,13 +14,13 @@ struct MoreView: View {
     @StateObject private var viewModel = MoreViewModel()
     
     var body: some View {
-        NavigationStack(path: $appState.navigationPath) {
+        NavigationStack(path: $appState.moreNavigationPath) {
             List {
                 Section {
                     NavigationLink(destination: AppearanceSettingsView()) {
                         MoreRowView(
                             iconName: "paintbrush.fill",
-                            iconColor: .osrsPrimaryColor,
+                            iconColor: Color(osrsTheme.primary),
                             title: "Appearance",
                             subtitle: "Themes and display settings"
                         )
@@ -30,7 +30,7 @@ struct MoreView: View {
                     NavigationLink(destination: DonateView()) {
                         MoreRowView(
                             iconName: "heart.fill",
-                            iconColor: .osrsErrorColor,
+                            iconColor: Color(osrsTheme.error),
                             title: "Donate",
                             subtitle: "Support OSRS Wiki development"
                         )
@@ -40,7 +40,7 @@ struct MoreView: View {
                     NavigationLink(destination: AboutView()) {
                         MoreRowView(
                             iconName: "info.circle.fill",
-                            iconColor: .osrsPrimaryColor,
+                            iconColor: Color(osrsTheme.primary),
                             title: "About",
                             subtitle: "App version and information"
                         )
@@ -50,7 +50,7 @@ struct MoreView: View {
                     NavigationLink(destination: FeedbackView()) {
                         MoreRowView(
                             iconName: "envelope.fill",
-                            iconColor: .osrsPrimaryColor,
+                            iconColor: Color(osrsTheme.primary),
                             title: "Send Feedback",
                             subtitle: "Report issues or request features"
                         )
@@ -64,6 +64,9 @@ struct MoreView: View {
             .background(.osrsBackground)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 60)
+            .toolbarBackground(osrsTheme.surface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(themeManager.currentColorScheme == .dark ? .dark : .light, for: .navigationBar)
         }
     }
 }
@@ -87,7 +90,7 @@ struct MoreRowView: View {
                 
                 Text(subtitle)
                     .font(.osrsBody)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
             }
             
             Spacer()

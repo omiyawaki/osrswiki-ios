@@ -18,9 +18,9 @@ struct HistoryRowView: View {
                 // History icon
                 Image(systemName: "clock.fill")
                     .font(.title3)
-                    .foregroundStyle(.osrsTextSecondary)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                     .frame(width: 40, height: 40)
-                    .background(.osrsSurfaceVariant)
+                    .background(.osrsSearchBoxBackgroundColor)
                     .cornerRadius(8)
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -28,21 +28,21 @@ struct HistoryRowView: View {
                         .font(.body)
                         .fontWeight(.medium)
                         .lineLimit(2)
-                        .foregroundStyle(.osrsOnSurface)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                         .multilineTextAlignment(.leading)
                     
                     if let snippet = historyItem.snippet, !snippet.isEmpty {
                         Text(snippet)
                             .font(.caption)
                             .lineLimit(2)
-                            .foregroundStyle(.osrsOnSurfaceVariant)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                             .multilineTextAlignment(.leading)
                     }
                     
                     HStack {
                         Text(historyItem.timestamp, style: .relative)
                             .font(.caption2)
-                            .foregroundStyle(.osrsTextSecondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                         
                         Spacer()
                         
@@ -60,7 +60,7 @@ struct HistoryRowView: View {
                 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsPlaceholderColor)
             }
             .padding(.vertical, 8)
             .contentShape(Rectangle())

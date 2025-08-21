@@ -82,6 +82,99 @@ final class osrswikiUITests: XCTestCase {
     }
 
     @MainActor
+    func testMoreSectionNavigationConsistency() throws {
+        let app = XCUIApplication()
+        app.launch()
+        
+        // Navigate to More tab
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
+        let moreTab = tabBar.buttons["More"]
+        moreTab.tap()
+        
+        // Test About page navigation
+        let aboutRow = app.buttons["About"]
+        XCTAssertTrue(aboutRow.waitForExistence(timeout: 5))
+        aboutRow.tap()
+        
+        // Verify About page has proper navigation bar with back button and title
+        let aboutNavBar = app.navigationBars["About"]
+        XCTAssertTrue(aboutNavBar.waitForExistence(timeout: 5), "About page should have navigation bar with title")
+        let aboutBackButton = aboutNavBar.buttons.firstMatch
+        XCTAssertTrue(aboutBackButton.exists, "About page should have back button")
+        
+        // Take screenshot of About page
+        let aboutScreenshot = XCTAttachment(screenshot: app.screenshot())
+        aboutScreenshot.name = "About Page Navigation"
+        add(aboutScreenshot)
+        
+        // Go back
+        aboutBackButton.tap()
+        
+        // Test Appearance page navigation  
+        let appearanceRow = app.buttons["Appearance"]
+        XCTAssertTrue(appearanceRow.waitForExistence(timeout: 5))
+        appearanceRow.tap()
+        
+        // Verify Appearance page has proper navigation bar
+        let appearanceNavBar = app.navigationBars["Appearance"]  
+        XCTAssertTrue(appearanceNavBar.waitForExistence(timeout: 5), "Appearance page should have navigation bar with title")
+        let appearanceBackButton = appearanceNavBar.buttons.firstMatch
+        XCTAssertTrue(appearanceBackButton.exists, "Appearance page should have back button")
+        
+        // Take screenshot of Appearance page
+        let appearanceScreenshot = XCTAttachment(screenshot: app.screenshot())
+        appearanceScreenshot.name = "Appearance Page Navigation"
+        add(appearanceScreenshot)
+        
+        // Go back
+        appearanceBackButton.tap()
+        
+        // Test Donate page navigation
+        let donateRow = app.buttons["Donate"]
+        XCTAssertTrue(donateRow.waitForExistence(timeout: 5))
+        donateRow.tap()
+        
+        // Verify Donate page has proper navigation bar
+        let donateNavBar = app.navigationBars["Donate"]
+        XCTAssertTrue(donateNavBar.waitForExistence(timeout: 5), "Donate page should have navigation bar with title")
+        let donateBackButton = donateNavBar.buttons.firstMatch
+        XCTAssertTrue(donateBackButton.exists, "Donate page should have back button")
+        
+        // Take screenshot of Donate page
+        let donateScreenshot = XCTAttachment(screenshot: app.screenshot())
+        donateScreenshot.name = "Donate Page Navigation"
+        add(donateScreenshot)
+        
+        // Go back
+        donateBackButton.tap()
+        
+        // Test Send Feedback page navigation
+        let feedbackRow = app.buttons["Send Feedback"]
+        XCTAssertTrue(feedbackRow.waitForExistence(timeout: 5))
+        feedbackRow.tap()
+        
+        // Verify Send Feedback page has proper navigation bar
+        let feedbackNavBar = app.navigationBars["Send Feedback"]
+        XCTAssertTrue(feedbackNavBar.waitForExistence(timeout: 5), "Send Feedback page should have navigation bar with title")
+        let feedbackBackButton = feedbackNavBar.buttons.firstMatch
+        XCTAssertTrue(feedbackBackButton.exists, "Send Feedback page should have back button")
+        
+        // Take screenshot of Send Feedback page
+        let feedbackScreenshot = XCTAttachment(screenshot: app.screenshot())
+        feedbackScreenshot.name = "Send Feedback Page Navigation"
+        add(feedbackScreenshot)
+        
+        // Go back to complete test
+        feedbackBackButton.tap()
+        
+        // Final screenshot showing More tab with all navigation tested
+        let finalScreenshot = XCTAttachment(screenshot: app.screenshot())
+        finalScreenshot.name = "More Tab After Navigation Testing"
+        add(finalScreenshot)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

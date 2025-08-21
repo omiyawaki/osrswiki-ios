@@ -11,17 +11,63 @@ import Foundation
 struct SearchResultRowView: View {
     @Environment(\.osrsTheme) var osrsTheme
     let result: ThemedSearchResult
+    let searchQuery: String?
     let onTap: () -> Void
+    
+    private var highlightedTitle: AttributedString {
+        guard let searchQuery = searchQuery, !searchQuery.isEmpty else {
+            return AttributedString(result.title)
+        }
+        
+        // Get the Alegreya font that matches .osrsListTitle
+        let alegreyaFont = getAlegreyaFont()
+        
+        return result.title.highlightMatches(query: searchQuery, 
+                                             baseColor: Color(osrsTheme.primaryTextColor),
+                                             highlightColor: Color(osrsTheme.secondaryTextColor),
+                                             baseFont: alegreyaFont)
+    }
+    
+    private func getAlegreyaFont() -> UIFont {
+        let fontNames = ["Alegreya-Medium", "alegreya_medium", "Alegreya Medium", "Alegreya-Regular", "Alegreya Regular"]
+        for fontName in fontNames {
+            if let font = UIFont(name: fontName, size: 20) {
+                return font
+            }
+        }
+        // Fallback to system font if Alegreya is not available
+        return UIFont.preferredFont(forTextStyle: .headline)
+    }
+    
+    private var highlightedSnippet: AttributedString {
+        guard let snippet = result.snippet, !snippet.isEmpty else {
+            return AttributedString("")
+        }
+        
+        // First try HTML processing for any existing searchmatch tags
+        let htmlProcessed = snippet.htmlToAttributedString(baseColor: Color(osrsTheme.primaryTextColor))
+        
+        // If no search query, return HTML processed version
+        guard let searchQuery = searchQuery, !searchQuery.isEmpty else {
+            return htmlProcessed
+        }
+        
+        // If HTML processing didn't find highlights, do manual highlighting
+        let plainText = snippet.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        return plainText.highlightMatches(query: searchQuery,
+                                          baseColor: Color(osrsTheme.primaryTextColor),
+                                          highlightColor: Color(osrsTheme.secondaryTextColor))
+    }
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 // Main content section (title and snippet)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(result.title)
+                    Text(highlightedTitle)
                         .font(.osrsListTitle)
                         .lineLimit(2)
-                        .foregroundStyle(.osrsOnSurface)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                         .multilineTextAlignment(.leading)
                         .onAppear {
                             print("🔍 [FONT DEBUG] Title: '\(result.title)'")
@@ -29,35 +75,37 @@ struct SearchResultRowView: View {
                         }
                     
                     if let snippet = result.snippet, !snippet.isEmpty {
-                        Text(snippet.htmlToAttributedString())
+                        Text(highlightedSnippet)
                             .font(.subheadline)
                             .lineLimit(2)
-                            .foregroundStyle(.osrsOnSurfaceVariant)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                             .multilineTextAlignment(.leading)
                             .onAppear {
                                 print("🔍 [SNIPPET DEBUG] Title: '\(result.title)'")
                                 print("🔍 [SNIPPET DEBUG] Raw snippet: '\(snippet)'")
                                 print("🔍 [SNIPPET DEBUG] Contains searchmatch: \(snippet.contains("searchmatch"))")
+                                print("🔍 [SNIPPET DEBUG] Search query: '\(searchQuery ?? "nil")'")
                             }
                     }
                 }
                 
                 Spacer()
                 
-                // Thumbnail positioned on the right (matching Android layout)
-                AsyncImage(url: result.thumbnailUrl) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .clipped()
-                } placeholder: {
-                    Image(systemName: "doc.text.fill")
-                        .foregroundStyle(.osrsOnSurfaceVariant)
-                        .font(.title2)
+                // Thumbnail positioned on the right (matching Android layout) - only show if URL exists
+                if let thumbnailUrl = result.thumbnailUrl {
+                    AsyncImage(url: thumbnailUrl) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipped()
+                    } placeholder: {
+                        ProgressView()
+                            .frame(width: 60, height: 60)
+                    }
+                    .frame(width: 60, height: 60)
+                    .background(.osrsSearchBoxBackgroundColor)
+                    .cornerRadius(8)
                 }
-                .frame(width: 60, height: 60)
-                .background(.osrsSurfaceVariant)
-                .cornerRadius(8)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 8)
@@ -91,45 +139,34 @@ struct ThemedSearchResult: Identifiable, Hashable {
 }
 
 #Preview {
-    VStack {
-        // Test different font configurations
-        Text("Testing System .headline font")
-            .font(.headline)
-            .padding()
-        
-        Text("Testing OSRS Alegreya title font") 
-            .font(.osrsListTitle)
-            .padding()
-            
-        Text("HTML Test: <b>Bold text</b> should be bold")
-            .font(.subheadline)
-            .padding()
-            
-        Text("HTML Test: <b>Bold text</b> should be bold".htmlToAttributedString())
-            .font(.subheadline)
-            .padding()
+    SearchResultRowView(
+        result: ThemedSearchResult(
+            title: "Varrock Castle",
+            snippet: "Varrock is the capital city of the kingdom...",
+            description: "Article",
+            url: "https://example.com",
+            thumbnailUrl: nil,
+            pageId: 123
+        ),
+        searchQuery: "var"
+    ) {
+        print("Tapped result")
     }
-    .onAppear {
-        print("🔍 [DEBUG] Preview loaded - checking font availability")
-        let testFont = UIFont(name: "Alegreya-Medium", size: 20)
-        print("🔍 [DEBUG] Alegreya-Medium available: \(testFont != nil)")
-        if let font = testFont {
-            print("🔍 [DEBUG] Font name: \(font.fontName), size: \(font.pointSize)")
-        }
-    }
+    .environmentObject(osrsThemeManager.preview)
+    .environment(\.osrsTheme, osrsLightTheme())
 }
 
 // MARK: - HTML Processing Extension
 extension String {
-    func htmlToAttributedString() -> AttributedString {
+    func htmlToAttributedString(baseColor: Color = .primary) -> AttributedString {
         // DEBUG: Log the conversion process
         print("🔍 [HTML DEBUG] Original snippet: '\(self)'")
         
-        // Handle search match highlighting similar to Android 
-        // Android uses: <span class="searchmatch"> -> <b><font color='#FF6B35'>
-        let orangeColor = "#FF6B35"  // Same as Android's search_highlight_light
+        // Handle search match highlighting with unified brown color
+        // Use same brown as osrs_text_secondary_light (#8B7355) to match Android
+        let brownColor = "#8B7355"  // Unified highlight color across platforms
         let highlightedHtml = self
-            .replacingOccurrences(of: "<span class=\"searchmatch\">", with: "<b><font color='\(orangeColor)'>")
+            .replacingOccurrences(of: "<span class=\"searchmatch\">", with: "<b><font color='\(brownColor)'>")
             .replacingOccurrences(of: "</span>", with: "</font></b>")
         
         print("🔍 [HTML DEBUG] After HTML transformation: '\(highlightedHtml)'")
@@ -155,15 +192,23 @@ extension String {
         let boldSystemFont = UIFont.boldSystemFont(ofSize: systemFont.pointSize)
         
         print("🔍 [HTML DEBUG] Setting fonts - Regular: \(systemFont.fontName), Bold: \(boldSystemFont.fontName)")
-        print("🔍 [HTML DEBUG] Target highlight color: \(orangeColor)")
+        print("🔍 [HTML DEBUG] Target highlight color: \(brownColor)")
         
-        // Apply system font to entire string, preserving other attributes (colors, bold)
+        // Apply system font to entire string, preserving existing colors
         let fullRange = NSRange(location: 0, length: mutableAttributedString.length)
         
-        // First, set all text to regular system font (preserving other attributes)
+        // Store existing color attributes BEFORE making font changes
+        var colorRanges: [(NSRange, UIColor)] = []
+        mutableAttributedString.enumerateAttribute(.foregroundColor, in: fullRange) { (value, range, _) in
+            if let color = value as? UIColor {
+                colorRanges.append((range, color))
+            }
+        }
+        
+        // Apply system font to entire string
         mutableAttributedString.addAttribute(.font, value: systemFont, range: fullRange)
         
-        // Then, find bold ranges and apply bold system font (colors are preserved)
+        // Apply bold system font to bold ranges
         mutableAttributedString.enumerateAttribute(.font, in: fullRange) { (value, range, _) in
             if let font = value as? UIFont {
                 if font.fontDescriptor.symbolicTraits.contains(.traitBold) {
@@ -172,9 +217,72 @@ extension String {
             }
         }
         
+        // Apply colors: use base color for ranges without existing colors, preserve highlights
+        mutableAttributedString.addAttribute(.foregroundColor, value: UIColor(baseColor), range: fullRange)
+        
+        // Restore specific highlight colors (they should be orange from HTML processing)
+        for (range, color) in colorRanges {
+            // Check if this is likely a highlight color (not black/default)
+            let colorComponents = color.cgColor.components
+            let isLikelyHighlight = colorComponents?.count ?? 0 >= 3 && 
+                                   (colorComponents?[0] ?? 0) > 0.3 && // Some red component
+                                   (colorComponents?[1] ?? 0) > 0.2 && // Some green component  
+                                   color != UIColor.black && color != UIColor.label
+            
+            if isLikelyHighlight {
+                mutableAttributedString.addAttribute(.foregroundColor, value: color, range: range)
+                print("🔍 [HIGHLIGHT] Preserved highlight color at range \(range): \(color)")
+            }
+        }
+        
         let result = AttributedString(mutableAttributedString)
         print("🔍 [HTML DEBUG] Font override SUCCESS - using system fonts")
         
         return result
+    }
+}
+
+// MARK: - Manual Text Highlighting Extension
+extension String {
+    func highlightMatches(query: String, baseColor: Color, highlightColor: Color, baseFont: UIFont? = nil) -> AttributedString {
+        let attributedString = NSMutableAttributedString(string: self)
+        let fullRange = NSRange(location: 0, length: attributedString.length)
+        
+        // Set base color and font
+        let font = baseFont ?? UIFont.preferredFont(forTextStyle: .subheadline)
+        let boldFont = baseFont?.withTraits(.traitBold) ?? UIFont.boldSystemFont(ofSize: font.pointSize)
+        attributedString.addAttribute(.font, value: font, range: fullRange)
+        attributedString.addAttribute(.foregroundColor, value: UIColor(baseColor), range: fullRange)
+        
+        // Find and highlight matches (case insensitive)
+        let searchString = self.lowercased()
+        let queryLowercased = query.lowercased()
+        
+        var searchIndex = 0
+        while searchIndex < searchString.count {
+            let startIndex = searchString.index(searchString.startIndex, offsetBy: searchIndex)
+            if let range = searchString.range(of: queryLowercased, range: startIndex..<searchString.endIndex) {
+                let nsRange = NSRange(range, in: self)
+                
+                // Apply highlight color and bold
+                attributedString.addAttribute(.foregroundColor, value: UIColor(highlightColor), range: nsRange)
+                attributedString.addAttribute(.font, value: boldFont, range: nsRange)
+                
+                searchIndex = self.distance(from: self.startIndex, to: range.upperBound)
+                print("🔍 [HIGHLIGHT] Found match '\(queryLowercased)' in '\(self)' at range: \(nsRange)")
+            } else {
+                break
+            }
+        }
+        
+        return AttributedString(attributedString)
+    }
+}
+
+// MARK: - UIFont Extension for Bold Traits
+extension UIFont {
+    func withTraits(_ traits: UIFontDescriptor.SymbolicTraits) -> UIFont? {
+        let descriptor = fontDescriptor.withSymbolicTraits(traits)
+        return descriptor.map { UIFont(descriptor: $0, size: 0) }
     }
 }

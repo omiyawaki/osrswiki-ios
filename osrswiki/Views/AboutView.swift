@@ -2,13 +2,14 @@
 //  AboutView.swift
 //  OSRS Wiki
 //
-//  Created on iOS feature parity session
+//  Updated to match Android About page exactly
 //
 
 import SwiftUI
 
 struct AboutView: View {
     @Environment(\.osrsTheme) var osrsTheme
+    @EnvironmentObject var themeManager: osrsThemeManager
     
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     private let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -16,193 +17,120 @@ struct AboutView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                appHeaderSection
+                titleSection
                 versionSection
                 creditsSection
-                legalSection
+                privacySection
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.vertical, 24)
         }
         .navigationTitle("About")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .background(.osrsBackground)
+        .toolbarBackground(osrsTheme.surface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(themeManager.currentColorScheme == .dark ? .dark : .light, for: .navigationBar)
     }
     
-    private var appHeaderSection: some View {
-        VStack(spacing: 16) {
-            // App Icon
-            Image("AppIcon") // TODO: Replace with actual app icon asset
-                .resizable()
-                .frame(width: 80, height: 80)
-                .cornerRadius(16)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-            
-            VStack(spacing: 4) {
-                Text("OSRS Wiki")
-                    .font(.osrsDisplay)
-                    .foregroundStyle(.osrsOnSurface)
-                
-                Text("Your ultimate Old School RuneScape companion")
-                    .font(.osrsBody)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
-                    .multilineTextAlignment(.center)
-            }
-        }
+    private var titleSection: some View {
+        Text("About OSRS Wiki App")
+            .font(.osrsDisplay)
+            .foregroundStyle(.osrsOnSurface)
+            .multilineTextAlignment(.center)
     }
     
     private var versionSection: some View {
-        VStack(spacing: 8) {
-            Text("Version \(appVersion) (\(buildNumber))")
-                .font(.osrsBody)
-                .foregroundStyle(.osrsOnSurfaceVariant)
-            
-            HStack(spacing: 16) {
-                Button("What's New") {
-                    // TODO: Show changelog/release notes
-                }
-                .foregroundStyle(.osrsPrimary)
-                
-                Button("Rate App") {
-                    openAppStore()
-                }
-                .foregroundStyle(.osrsPrimary)
-            }
-            .font(.osrsCaption)
-        }
-        .padding()
-        .background(.osrsSurfaceVariant)
-        .cornerRadius(12)
+        Text("Version \(appVersion) (\(buildNumber))")
+            .font(.osrsBody)
+            .foregroundStyle(.osrsSecondaryTextColor)
+            .multilineTextAlignment(.center)
     }
     
     private var creditsSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Credits")
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Credits & Acknowledgments")
                 .font(.osrsHeadline)
                 .foregroundStyle(.osrsOnSurface)
+                .frame(maxWidth: .infinity, alignment: .leading)
             
             creditItem(
-                title: "Jagex Ltd.",
-                description: "Old School RuneScape is a trademark of Jagex Ltd. This app is not affiliated with or endorsed by Jagex.",
-                buttonText: nil,
-                buttonAction: nil
+                title: "Old School RuneScape",
+                description: "Jagex®, RuneScape®, and Old School RuneScape® are registered and/or unregistered trademarks of Jagex in the United Kingdom, the United States, the European Union and other territories."
             )
             
-            creditItem(
-                title: "Old School RuneScape Wiki",
-                description: "Content and information provided by the Old School RuneScape Wiki community. The wiki is a collaborative effort by players for players.",
-                buttonText: "Visit Wiki",
-                buttonAction: { openWiki() }
-            )
+            VStack(alignment: .leading, spacing: 8) {
+                creditItem(
+                    title: "OSRS Wiki",
+                    description: "All information and game content fetched by this app is provided by the Old School Runescape Wiki. This app would not be possible without the wiki itself."
+                )
+                
+                Button(action: openWiki) {
+                    HStack {
+                        Text("Visit OSRS Wiki")
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(.osrsBody)
+                    .foregroundStyle(.osrsPrimary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+            }
             
             creditItem(
-                title: "Wikimedia Foundation",
-                description: "This app is inspired by the Wikipedia app and uses similar design patterns and user experience principles.",
-                buttonText: nil,
-                buttonAction: nil
-            )
-            
-            creditItem(
-                title: "Open Source Libraries",
-                description: "This app is built with Swift and SwiftUI, using various open source libraries and frameworks.",
-                buttonText: "View Licenses",
-                buttonAction: { showLicenses() }
+                title: "Wikipedia",
+                description: "This app's design and architecture were influenced by the Wikipedia app. In the spirit of both Oldschool Runescape Wiki and Wikipedia's free and open source principles, the OSRS Wiki app is and will always be free."
             )
         }
     }
     
-    private var legalSection: some View {
-        VStack(spacing: 12) {
-            Divider()
+    private var privacySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Privacy Policy")
+                .font(.osrsHeadline)
+                .foregroundStyle(.osrsOnSurface)
+                .frame(maxWidth: .infinity, alignment: .leading)
             
-            VStack(spacing: 8) {
-                Button("Privacy Policy") {
-                    openPrivacyPolicy()
+            Text("The OSRS Wiki App collects minimal user data, primarily voice search recordings processed locally and temporarily, and usage metrics to improve app functionality. The app does not permanently store personal information.")
+                .font(.osrsBody)
+                .foregroundStyle(.osrsSecondaryTextColor)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Button(action: openPrivacyPolicy) {
+                HStack {
+                    Text("View Privacy Policy")
+                    Image(systemName: "arrow.up.right")
                 }
-                .foregroundStyle(.osrsPrimary)
-                
-                Button("Terms of Service") {
-                    openTermsOfService()
-                }
-                .foregroundStyle(.osrsPrimary)
-                
-                Button("Contact Developer") {
-                    openContactDeveloper()
-                }
+                .font(.osrsBody)
                 .foregroundStyle(.osrsPrimary)
             }
-            .font(.body)
-            
-            Text("Made with ❤️ for the OSRS community")
-                .font(.osrsCaption)
-                .foregroundStyle(.osrsOnSurfaceVariant)
-                .padding(.top, 8)
+            .frame(maxWidth: .infinity)
         }
     }
     
-    private func creditItem(title: String, description: String, buttonText: String?, buttonAction: (() -> Void)?) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func creditItem(title: String, description: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.osrsTitle)
                 .foregroundStyle(.osrsOnSurface)
             
             Text(description)
                 .font(.osrsBody)
-                .foregroundStyle(.osrsOnSurfaceVariant)
+                .foregroundStyle(.osrsSecondaryTextColor)
                 .fixedSize(horizontal: false, vertical: true)
-            
-            if let buttonText = buttonText, let buttonAction = buttonAction {
-                Button(action: buttonAction) {
-                    HStack {
-                        Text(buttonText)
-                        Image(systemName: "arrow.up.right")
-                    }
-                    .font(.osrsCaption)
-                    .foregroundStyle(.osrsPrimary)
-                }
-                .padding(.top, 4)
-            }
         }
-        .padding()
-        .background(.osrsSurfaceVariant)
-        .cornerRadius(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     // MARK: - Actions
-    private func openAppStore() {
-        // TODO: Open App Store page for rating
-        if let url = URL(string: "https://apps.apple.com/app/id1234567890") { // Replace with actual App Store URL
-            UIApplication.shared.open(url)
-        }
-    }
-    
     private func openWiki() {
         if let url = URL(string: "https://oldschool.runescape.wiki/") {
             UIApplication.shared.open(url)
         }
     }
     
-    private func showLicenses() {
-        // TODO: Show open source licenses view
-    }
-    
     private func openPrivacyPolicy() {
-        // TODO: Open privacy policy URL
-        if let url = URL(string: "https://oldschool.runescape.wiki/privacy") {
-            UIApplication.shared.open(url)
-        }
-    }
-    
-    private func openTermsOfService() {
-        // TODO: Open terms of service URL
-        if let url = URL(string: "https://oldschool.runescape.wiki/terms") {
-            UIApplication.shared.open(url)
-        }
-    }
-    
-    private func openContactDeveloper() {
-        // TODO: Open email or contact form
-        if let url = URL(string: "mailto:feedback@osrswiki.app?subject=OSRS%20Wiki%20iOS%20App%20Feedback") {
+        if let url = URL(string: "https://osrswiki.github.io/osrswiki-privacy-policy/") {
             UIApplication.shared.open(url)
         }
     }

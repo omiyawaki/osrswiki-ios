@@ -48,17 +48,17 @@ struct StorageView: View {
                 VStack(spacing: 8) {
                     Text("Total App Storage")
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                     
                     HStack(alignment: .bottom, spacing: 4) {
                         Text(viewModel.totalStorageUsed)
                             .font(.largeTitle)
                             .fontWeight(.bold)
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.osrsPrimaryTextColor)
                         
                         Text("MB")
                             .font(.title3)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                             .padding(.bottom, 4)
                     }
                 }
@@ -68,13 +68,13 @@ struct StorageView: View {
                     HStack {
                         Text("Available Device Storage")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                         
                         Spacer()
                         
                         Text("\(viewModel.availableStorage) GB free")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                     }
                     
                     ProgressView(value: viewModel.storageUsagePercentage)
@@ -103,19 +103,19 @@ struct StorageView: View {
                 viewModel.optimizeStorage()
             }) {
                 Label("Optimize Storage", systemImage: "wand.and.rays")
-                    .foregroundColor(.blue)
+                    .foregroundStyle(.osrsPrimary)
             }
             
             Button(action: {
                 viewModel.analyzeStorageUsage()
             }) {
                 Label("Analyze Storage Usage", systemImage: "chart.bar.fill")
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.osrsAccent)
             }
             
             NavigationLink(destination: AdvancedStorageView()) {
                 Label("Advanced Settings", systemImage: "gearshape.fill")
-                    .foregroundColor(.gray)
+                    .foregroundStyle(.osrsSecondaryTextColor)
             }
         }
     }
@@ -134,11 +134,11 @@ struct StorageItemRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.type.description)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text(item.details)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsSecondaryTextColor)
             }
             
             Spacer()
@@ -147,14 +147,14 @@ struct StorageItemRow: View {
                 Text("\(item.size) MB")
                     .font(.body)
                     .fontWeight(.medium)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 if item.canClear {
                     Button("Clear") {
                         onClear()
                     }
                     .font(.caption)
-                    .foregroundColor(.red)
+                    .foregroundStyle(.osrsError)
                 }
             }
         }
@@ -178,7 +178,7 @@ struct AdvancedStorageView: View {
                     Slider(value: .constant(50), in: 10...200)
                     Text("50 MB")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                 }
             }
         }

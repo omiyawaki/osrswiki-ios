@@ -249,3 +249,23 @@ iframe[width] {
         height: auto !important;
     }
 }
+
+/* --- iOS-specific Infobox Border Fix --- */
+/* 
+ * iOS WebKit sometimes renders borders differently than Android WebView.
+ * This ensures the infobox border matches Android's appearance.
+ */
+.infobox {
+    border: 1px solid var(--ooui-interface-border) !important;
+    -webkit-border-image: none !important; /* Disable any border image rendering */
+}
+
+/* Ensure consistent border rendering on iOS */
+@supports (-webkit-touch-callout: none) {
+    /* iOS-specific styles */
+    .infobox {
+        border-color: var(--ooui-interface-border) !important;
+        border-style: solid !important;
+        border-width: 1px !important;
+    }
+}

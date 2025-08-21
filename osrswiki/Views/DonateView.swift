@@ -39,8 +39,8 @@ struct DonateView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        .navigationTitle("Support Development")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle("Donate")
+        .navigationBarTitleDisplayMode(.inline)
         .background(.osrsBackground)
         .onAppear {
             donationManager.loadProducts()
@@ -56,11 +56,11 @@ struct DonateView: View {
             Text("Support OSRS Wiki")
                 .font(.title)
                 .fontWeight(.bold)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             Text("Help keep this app free and ad-free! Your support helps us continue improving the app and adding new features for the OSRS community.")
                 .font(.body)
-                .foregroundStyle(.osrsOnSurfaceVariant)
+                .foregroundStyle(.osrsSecondaryTextColor)
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
         }
@@ -70,7 +70,7 @@ struct DonateView: View {
         VStack(spacing: 12) {
             Text("Choose an amount")
                 .font(.headline)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
                 ForEach(DonationAmount.allCases.filter { $0 != .custom }, id: \.self) { amount in
@@ -108,10 +108,10 @@ struct DonateView: View {
             
             Text("Minimum: $1.00, Maximum: $99.99")
                 .font(.caption)
-                .foregroundStyle(.osrsOnSurfaceVariant)
+                .foregroundStyle(.osrsSecondaryTextColor)
         }
         .padding()
-        .background(.osrsSurfaceVariant)
+        .background(.osrsSearchBoxBackgroundColor)
         .cornerRadius(12)
     }
     
@@ -128,30 +128,12 @@ struct DonateView: View {
                 .foregroundStyle(.osrsOnPrimary)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isDonateButtonEnabled ? .osrsPrimary : .osrsOnSurfaceVariant)
+                .background(Color(osrsTheme.primary))
                 .cornerRadius(12)
             }
             .disabled(!isDonateButtonEnabled)
+            .opacity(isDonateButtonEnabled ? 1.0 : 0.4)
             
-            Text("Secure payment powered by Apple Pay")
-                .font(.caption)
-                .foregroundStyle(.osrsOnSurfaceVariant)
-            
-            HStack(spacing: 20) {
-                Image(systemName: "lock.shield.fill")
-                    .foregroundStyle(.osrsAccent)
-                Text("Secure")
-                
-                Image(systemName: "creditcard.fill")
-                    .foregroundStyle(.osrsPrimary)
-                Text("Apple Pay")
-                
-                Image(systemName: "checkmark.shield.fill")
-                    .foregroundStyle(.osrsAccent)
-                Text("Safe")
-            }
-            .font(.caption)
-            .foregroundStyle(.osrsOnSurfaceVariant)
         }
     }
     
@@ -162,10 +144,10 @@ struct DonateView: View {
             
             Text("Processing payment...")
                 .font(.body)
-                .foregroundStyle(.osrsOnSurfaceVariant)
+                .foregroundStyle(.osrsSecondaryTextColor)
         }
         .padding()
-        .background(.osrsSurfaceVariant)
+        .background(.osrsSearchBoxBackgroundColor)
         .cornerRadius(12)
     }
     
@@ -177,11 +159,11 @@ struct DonateView: View {
                 Text("Support the Wiki Too!")
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text("The Old School RuneScape Wiki is maintained by volunteers. Consider supporting them too!")
                     .font(.body)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                     .multilineTextAlignment(.center)
                 
                 Button(action: {
@@ -196,7 +178,7 @@ struct DonateView: View {
                     .padding()
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(.osrsPrimary, lineWidth: 2)
+                            .stroke(.osrsOutline, lineWidth: 2)
                     )
                 }
             }
@@ -264,6 +246,7 @@ struct DonateView: View {
 }
 
 struct DonationAmountButton: View {
+    @Environment(\.osrsTheme) var osrsTheme
     let amount: DonationAmount
     let isSelected: Bool
     let action: () -> Void
@@ -272,14 +255,14 @@ struct DonationAmountButton: View {
         Button(action: action) {
             Text(amount.displayValue)
                 .font(.headline)
-                .foregroundStyle(isSelected ? .osrsOnPrimary : .osrsOnSurface)
+                .foregroundStyle(isSelected ? .osrsOnPrimary : .osrsPrimaryTextColor)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isSelected ? .osrsPrimary : .osrsSurfaceVariant)
+                .background(isSelected ? .osrsPrimary : .osrsSearchBoxBackgroundColor)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSelected ? .osrsPrimaryColor : Color.clear, lineWidth: 2)
+                        .stroke(isSelected ? Color(osrsTheme.outline) : Color.clear, lineWidth: 2)
                 )
         }
     }
@@ -312,8 +295,14 @@ enum DonationAmount: CaseIterable {
 
 // MARK: - DonationManager
 class DonationManager: NSObject, ObservableObject {
-    @Published var products: [SKProduct] = []
-    @Published var canMakePayments = SKPaymentQueue.canMakePayments()
+    @Published var products: [SKProduct] = [] // Legacy StoreKit for compatibility
+    @Published var canMakePayments: Bool = {
+        if #available(iOS 18.0, *) {
+            return true // AppStore.canMakePayments would go here when using modern StoreKit
+        } else {
+            return SKPaymentQueue.canMakePayments()
+        }
+    }()
     @Published var isApplePayAvailable = PKPaymentAuthorizationViewController.canMakePayments()
     
     private var donationCompletion: ((Bool) -> Void)?

@@ -11,8 +11,10 @@ import SwiftUI
 // MARK: - Theme Protocol
 
 /// Protocol defining the semantic color structure for OSRS themes
-/// Aligned with Android's Material Design color system for consistency
+/// Mirrors Android's semantic color architecture for cross-platform consistency
 protocol osrsThemeProtocol {
+    // MARK: - Material Design Foundation Colors (guaranteed contrast pairs)
+    
     // Primary colors - main brand colors
     var primary: Color { get }
     var onPrimary: Color { get }
@@ -42,11 +44,34 @@ protocol osrsThemeProtocol {
     var onError: Color { get }
     var outline: Color { get }
     
-    // Text colors for convenience
+    // MARK: - App-Specific Semantic Colors (parallel to Android attrs.xml)
+    
+    /// Main paper/parchment background - equivalent to Android's ?attr/paper_color
+    var paperColor: Color { get }
+    
+    /// Primary text on surfaces - equivalent to Android's ?attr/primary_text_color
+    var primaryTextColor: Color { get }
+    
+    /// Secondary text on surfaces - equivalent to Android's ?attr/secondary_text_color
+    /// Guaranteed to have proper contrast on surface colors
+    var secondaryTextColor: Color { get }
+    
+    /// Border color for UI elements - equivalent to Android's ?attr/border_color
+    var borderColor: Color { get }
+    
+    /// Bottom navigation background - equivalent to Android's ?attr/bottom_nav_background_color
+    var bottomNavBackgroundColor: Color { get }
+    
+    /// Placeholder icon/text color - equivalent to Android's ?attr/placeholder_color
+    var placeholderColor: Color { get }
+    
+    /// Search box background - equivalent to Android's ?attr/search_box_background_color
+    var searchBoxBackgroundColor: Color { get }
+    
+    // MARK: - Legacy Convenience Properties (for backwards compatibility)
+    
     var textPrimary: Color { get }
     var textSecondary: Color { get }
-    
-    // Specialized colors
     var border: Color { get }
     var divider: Color { get }
 }
@@ -54,12 +79,25 @@ protocol osrsThemeProtocol {
 // MARK: - Theme Style Enum
 
 /// Semantic color styles for use with osrsThemeColor ShapeStyle
+/// Mirrors Android's semantic color system for cross-platform consistency
 enum osrsThemeStyle: Hashable {
+    // MARK: - Material Design Foundation Colors
     case primary, onPrimary, primaryContainer, onPrimaryContainer
     case surface, onSurface, surfaceVariant, onSurfaceVariant
     case background, onBackground
     case secondary, onSecondary, secondaryContainer, onSecondaryContainer
     case accent, link, error, onError, outline
+    
+    // MARK: - App-Specific Semantic Colors (parallel to Android attrs.xml)
+    case paperColor
+    case primaryTextColor
+    case secondaryTextColor
+    case borderColor
+    case bottomNavBackgroundColor
+    case placeholderColor
+    case searchBoxBackgroundColor
+    
+    // MARK: - Legacy (for backwards compatibility)
     case textPrimary, textSecondary
     case border, divider
 }
@@ -87,6 +125,7 @@ struct osrsThemeColor: ShapeStyle, Hashable {
         let theme = environment.osrsTheme
         
         switch style {
+        // MARK: - Material Design Foundation Colors
         case .primary: return theme.primary
         case .onPrimary: return theme.onPrimary
         case .primaryContainer: return theme.primaryContainer
@@ -111,6 +150,16 @@ struct osrsThemeColor: ShapeStyle, Hashable {
         case .onError: return theme.onError
         case .outline: return theme.outline
             
+        // MARK: - App-Specific Semantic Colors
+        case .paperColor: return theme.paperColor
+        case .primaryTextColor: return theme.primaryTextColor
+        case .secondaryTextColor: return theme.secondaryTextColor
+        case .borderColor: return theme.borderColor
+        case .bottomNavBackgroundColor: return theme.bottomNavBackgroundColor
+        case .placeholderColor: return theme.placeholderColor
+        case .searchBoxBackgroundColor: return theme.searchBoxBackgroundColor
+            
+        // MARK: - Legacy (for backwards compatibility)
         case .textPrimary: return theme.textPrimary
         case .textSecondary: return theme.textSecondary
         case .border: return theme.border
@@ -124,40 +173,43 @@ struct osrsThemeColor: ShapeStyle, Hashable {
 /// Extensions to enable natural color usage throughout the app
 /// Usage: .foregroundStyle(.osrsPrimary) or .background(.osrsSurface)
 extension ShapeStyle where Self == osrsThemeColor {
-    // Primary colors
+    // MARK: - Material Design Foundation Colors
     static var osrsPrimary: osrsThemeColor { osrsThemeColor(.primary) }
     static var osrsOnPrimary: osrsThemeColor { osrsThemeColor(.onPrimary) }
     static var osrsPrimaryContainer: osrsThemeColor { osrsThemeColor(.primaryContainer) }
     static var osrsOnPrimaryContainer: osrsThemeColor { osrsThemeColor(.onPrimaryContainer) }
     
-    // Surface colors
     static var osrsSurface: osrsThemeColor { osrsThemeColor(.surface) }
     static var osrsOnSurface: osrsThemeColor { osrsThemeColor(.onSurface) }
     static var osrsSurfaceVariant: osrsThemeColor { osrsThemeColor(.surfaceVariant) }
     static var osrsOnSurfaceVariant: osrsThemeColor { osrsThemeColor(.onSurfaceVariant) }
     
-    // Background colors
     static var osrsBackground: osrsThemeColor { osrsThemeColor(.background) }
     static var osrsOnBackground: osrsThemeColor { osrsThemeColor(.onBackground) }
     
-    // Secondary colors
     static var osrsSecondary: osrsThemeColor { osrsThemeColor(.secondary) }
     static var osrsOnSecondary: osrsThemeColor { osrsThemeColor(.onSecondary) }
     static var osrsSecondaryContainer: osrsThemeColor { osrsThemeColor(.secondaryContainer) }
     static var osrsOnSecondaryContainer: osrsThemeColor { osrsThemeColor(.onSecondaryContainer) }
     
-    // Accent and functional colors
     static var osrsAccent: osrsThemeColor { osrsThemeColor(.accent) }
     static var osrsLink: osrsThemeColor { osrsThemeColor(.link) }
     static var osrsError: osrsThemeColor { osrsThemeColor(.error) }
     static var osrsOnError: osrsThemeColor { osrsThemeColor(.onError) }
     static var osrsOutline: osrsThemeColor { osrsThemeColor(.outline) }
     
-    // Text colors
+    // MARK: - App-Specific Semantic Colors (parallel to Android attrs.xml)
+    static var osrsPaperColor: osrsThemeColor { osrsThemeColor(.paperColor) }
+    static var osrsPrimaryTextColor: osrsThemeColor { osrsThemeColor(.primaryTextColor) }
+    static var osrsSecondaryTextColor: osrsThemeColor { osrsThemeColor(.secondaryTextColor) }
+    static var osrsBorderColor: osrsThemeColor { osrsThemeColor(.borderColor) }
+    static var osrsBottomNavBackgroundColor: osrsThemeColor { osrsThemeColor(.bottomNavBackgroundColor) }
+    static var osrsPlaceholderColor: osrsThemeColor { osrsThemeColor(.placeholderColor) }
+    static var osrsSearchBoxBackgroundColor: osrsThemeColor { osrsThemeColor(.searchBoxBackgroundColor) }
+    
+    // MARK: - Legacy (for backwards compatibility)
     static var osrsTextPrimary: osrsThemeColor { osrsThemeColor(.textPrimary) }
     static var osrsTextSecondary: osrsThemeColor { osrsThemeColor(.textSecondary) }
-    
-    // Specialized colors
     static var osrsBorder: osrsThemeColor { osrsThemeColor(.border) }
     static var osrsDivider: osrsThemeColor { osrsThemeColor(.divider) }
 }
@@ -264,8 +316,10 @@ extension EnvironmentValues {
 
 // MARK: - Theme Implementations
 
-/// OSRS Light Theme - matches Android osrs_light theme colors
+/// OSRS Light Theme - matches Android osrs_light theme colors with semantic delegation
 struct osrsLightTheme: osrsThemeProtocol {
+    // MARK: - Material Design Foundation Colors
+    
     // Primary colors - main OSRS brown branding
     let primary = Color(hex: "#4C3D2A")           // osrs_brown_deep
     let onPrimary = Color(hex: "#F0E6D2")         // osrs_text_light
@@ -295,20 +349,43 @@ struct osrsLightTheme: osrsThemeProtocol {
     let onError = Color(hex: "#FFFFFF")           // white
     let outline = Color(hex: "#4C3D2A")           // osrs_brown_deep
     
-    // Text colors for convenience
-    var textPrimary: Color { onSurface }          // osrs_text_dark
-    var textSecondary: Color { Color(hex: "#8B7355") } // osrs_text_secondary_light
+    // MARK: - App-Specific Semantic Colors (parallel to Android attrs.xml)
     
-    // Specialized colors
-    var border: Color { outline }                 // osrs_brown_deep
+    /// Equivalent to Android: ?attr/paper_color → ?attr/colorSurface
+    var paperColor: Color { surface }             // osrs_parchment_light
+    
+    /// Equivalent to Android: ?attr/primary_text_color → ?attr/colorOnSurface
+    var primaryTextColor: Color { onSurface }     // osrs_text_dark
+    
+    /// Equivalent to Android: secondary_text_color → @color/osrs_text_secondary_light
+    var secondaryTextColor: Color { Color(hex: "#8B7355") } // osrs_text_secondary_light
+    
+    /// Equivalent to Android: ?attr/border_color → ?attr/colorSurfaceVariant
+    var borderColor: Color { surfaceVariant }     // osrs_parchment_surface_light
+    
+    /// Equivalent to Android: ?attr/bottom_nav_background_color → ?attr/paper_color
+    var bottomNavBackgroundColor: Color { paperColor } // delegates to paper_color
+    
+    /// Equivalent to Android: ?attr/placeholder_color → @color/osrs_brown_deep
+    var placeholderColor: Color { primary }       // osrs_brown_deep
+    
+    /// Equivalent to Android: ?attr/search_box_background_color → #1A000000
+    var searchBoxBackgroundColor: Color { Color.black.opacity(0.1) } // #1A000000
+    
+    // MARK: - Legacy (for backwards compatibility)
+    var textPrimary: Color { primaryTextColor }   // delegates to semantic
+    var textSecondary: Color { secondaryTextColor } // delegates to semantic
+    var border: Color { borderColor }             // delegates to semantic
     var divider: Color { Color(hex: "#D2B48C").opacity(0.5) } // osrs_parchment_medium with opacity
 }
 
-/// OSRS Dark Theme - matches Android osrs_dark theme colors
+/// OSRS Dark Theme - matches Android osrs_dark theme colors with semantic delegation
 struct osrsDarkTheme: osrsThemeProtocol {
-    // Primary colors - consistent OSRS brown branding
-    let primary = Color(hex: "#4C3D2A")           // osrs_brown_deep
-    let onPrimary = Color(hex: "#F0E6D2")         // osrs_text_light
+    // MARK: - Material Design Foundation Colors
+    
+    // Primary colors - inverted for dark mode visibility
+    let primary = Color(hex: "#D2B48C")           // osrs_parchment_medium - light brown for buttons in dark mode
+    let onPrimary = Color(hex: "#28221d")         // osrs_parchment_dark - dark text on light buttons
     let primaryContainer = Color(hex: "#28221d")   // osrs_parchment_dark
     let onPrimaryContainer = Color(hex: "#f4eaea") // osrs_text_light_alt
     
@@ -316,31 +393,52 @@ struct osrsDarkTheme: osrsThemeProtocol {
     let surface = Color(hex: "#28221d")           // osrs_parchment_dark
     let onSurface = Color(hex: "#f4eaea")         // osrs_text_light_alt
     let surfaceVariant = Color(hex: "#3e3529")    // osrs_interface_grey_dark
-    let onSurfaceVariant = Color(hex: "#f4eaea")  // osrs_text_light_alt
+    let onSurfaceVariant = Color(hex: "#f4eaea")  // osrs_text_light_alt - Android uses same as onSurface
     
     // Background colors
     let background = Color(hex: "#28221d")        // osrs_parchment_dark
     let onBackground = Color(hex: "#f4eaea")      // osrs_text_light_alt
     
-    // Secondary colors
-    let secondary = Color(hex: "#f4eaea")         // osrs_text_light_alt
+    // Secondary colors - match Android exactly
+    let secondary = Color(hex: "#f4eaea")         // osrs_text_light_alt - same as Android colorSecondary
     let onSecondary = Color(hex: "#4C3D2A")       // osrs_brown_deep
     let secondaryContainer = Color(hex: "#28221d") // osrs_parchment_dark
-    let onSecondaryContainer = Color(hex: "#d4af37") // osrs_gold_muted
+    let onSecondaryContainer = Color(hex: "#d4af37") // osrs_gold_muted - gold only for accents
     
     // Accent and functional colors
-    let accent = Color(hex: "#d4af37")            // osrs_gold_muted
+    let accent = Color(hex: "#d4af37")            // osrs_gold_muted - gold reserved for accents
     let link = Color(hex: "#b79d7e")              // link_color_osrs_dark
     let error = Color(hex: "#B00020")             // color_error
     let onError = Color(hex: "#FFFFFF")           // white
-    let outline = Color(hex: "#4C3D2A")           // osrs_brown_deep
+    let outline = Color(hex: "#D2B48C")           // osrs_parchment_medium - light outline for dark mode
     
-    // Text colors for convenience
-    var textPrimary: Color { onSurface }          // osrs_text_light_alt
-    var textSecondary: Color { Color(hex: "#B8B8B8") } // secondary text dark
+    // MARK: - App-Specific Semantic Colors (parallel to Android attrs.xml)
     
-    // Specialized colors
-    var border: Color { outline }                 // osrs_brown_deep
+    /// Equivalent to Android: ?attr/paper_color → ?attr/colorSurface
+    var paperColor: Color { surface }             // osrs_parchment_dark
+    
+    /// Equivalent to Android: ?attr/primary_text_color → ?attr/colorOnSurface
+    var primaryTextColor: Color { onSurface }     // osrs_text_light_alt
+    
+    /// Equivalent to Android: secondary_text_color → osrs_text_secondary_light (unified brown)
+    var secondaryTextColor: Color { Color(hex: "#8B7355") } // osrs_text_secondary_light - unified across themes
+    
+    /// Equivalent to Android: ?attr/border_color → ?attr/colorSurfaceVariant
+    var borderColor: Color { surfaceVariant }     // osrs_interface_grey_dark
+    
+    /// Equivalent to Android: ?attr/bottom_nav_background_color → ?attr/paper_color
+    var bottomNavBackgroundColor: Color { paperColor } // delegates to paper_color
+    
+    /// Equivalent to Android: ?attr/placeholder_color → @color/osrs_text_light_alt
+    var placeholderColor: Color { onSurface }     // osrs_text_light_alt
+    
+    /// Equivalent to Android: ?attr/search_box_background_color → #1A000000
+    var searchBoxBackgroundColor: Color { Color.white.opacity(0.1) } // light overlay on dark background
+    
+    // MARK: - Legacy (for backwards compatibility)
+    var textPrimary: Color { primaryTextColor }   // delegates to semantic
+    var textSecondary: Color { secondaryTextColor } // delegates to semantic
+    var border: Color { borderColor }             // delegates to semantic
     var divider: Color { Color(hex: "#3e3529") }  // osrs_interface_grey_dark
 }
 

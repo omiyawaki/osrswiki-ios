@@ -72,9 +72,9 @@ struct OfflineSettingsView: View {
             } label: {
                 HStack {
                     Text(cacheSizeLimits.first { $0.0 == selectedCacheSizeLimit }?.1 ?? "100 MB")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                     Image(systemName: "chevron.down")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                         .font(.caption)
                 }
             }
@@ -101,10 +101,10 @@ struct OfflineSettingsView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("45.2 MB")
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 Text("of \(cacheSizeLimits.first { $0.0 == selectedCacheSizeLimit }?.1 ?? "100 MB")")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsSecondaryTextColor)
             }
         }
         .padding(.vertical, 4)

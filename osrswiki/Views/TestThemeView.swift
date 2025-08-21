@@ -15,13 +15,13 @@ struct TestThemeView: View {
         VStack(spacing: 20) {
             Text("OSRS Theme Test")
                 .font(.largeTitle)
-                .foregroundStyle(.osrsTextPrimary)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             Text("Primary Text")
                 .foregroundStyle(.osrsPrimary)
             
             Text("Secondary Text")
-                .foregroundStyle(.osrsTextSecondary)
+                .foregroundStyle(.osrsSecondaryTextColor)
             
             Text("Accent Color")
                 .foregroundStyle(.osrsAccent)
@@ -43,7 +43,7 @@ struct TestThemeView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(themeManager.selectedTheme == theme ? .osrsAccent : .osrsSurface)
-                    .foregroundStyle(themeManager.selectedTheme == theme ? .osrsOnPrimary : .osrsTextPrimary)
+                    .foregroundStyle(themeManager.selectedTheme == theme ? .osrsOnPrimary : .osrsPrimaryTextColor)
                     .cornerRadius(4)
                 }
             }

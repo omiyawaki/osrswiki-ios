@@ -14,12 +14,43 @@ class AppState: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
-    // Navigation state
-    @Published var navigationPath = NavigationPath()
+    // Navigation state - separate navigation paths for each tab
+    @Published var newsNavigationPath = NavigationPath()
+    @Published var savedNavigationPath = NavigationPath()
+    @Published var searchNavigationPath = NavigationPath()
+    @Published var mapNavigationPath = NavigationPath()
+    @Published var moreNavigationPath = NavigationPath()
     
-    // Full screen article presentation
-    @Published var showingFullScreenArticle = false
-    @Published var fullScreenArticleDestination: ArticleDestination?
+    // Current tab's navigation path
+    var currentNavigationPath: Binding<NavigationPath> {
+        switch selectedTab {
+        case .news:
+            return Binding(
+                get: { self.newsNavigationPath },
+                set: { self.newsNavigationPath = $0 }
+            )
+        case .saved:
+            return Binding(
+                get: { self.savedNavigationPath },
+                set: { self.savedNavigationPath = $0 }
+            )
+        case .search:
+            return Binding(
+                get: { self.searchNavigationPath },
+                set: { self.searchNavigationPath = $0 }
+            )
+        case .map:
+            return Binding(
+                get: { self.mapNavigationPath },
+                set: { self.mapNavigationPath = $0 }
+            )
+        case .more:
+            return Binding(
+                get: { self.moreNavigationPath },
+                set: { self.moreNavigationPath = $0 }
+            )
+        }
+    }
     
     init() {
         loadUserPreferences()
@@ -72,34 +103,94 @@ class AppState: ObservableObject {
         }
     }
     
-    // Article navigation methods - now using full screen presentation
+    // Article navigation methods - using NavigationStack with per-tab paths
     func navigateToArticle(title: String, url: URL) {
         let destination = ArticleDestination(title: title, url: url)
-        fullScreenArticleDestination = destination
-        showingFullScreenArticle = true
+        appendToCurrentNavigationPath(NavigationDestination.article(destination))
     }
     
     // URL-only navigation (like Android) - extracts title from URL
     func navigateToArticle(url: URL) {
         let destination = ArticleDestination(title: nil, url: url)
-        fullScreenArticleDestination = destination
-        showingFullScreenArticle = true
+        appendToCurrentNavigationPath(NavigationDestination.article(destination))
     }
     
-    // Close full screen article
-    func closeFullScreenArticle() {
-        showingFullScreenArticle = false
-        fullScreenArticleDestination = nil
+    // Navigate to search
+    func navigateToSearch() {
+        appendToCurrentNavigationPath(NavigationDestination.search)
     }
     
+    // Navigate back
     func navigateBack() {
-        if !navigationPath.isEmpty {
-            navigationPath.removeLast()
+        removeLastFromCurrentNavigationPath()
+    }
+    
+    // Helper to append to current tab's navigation path
+    private func appendToCurrentNavigationPath(_ destination: NavigationDestination) {
+        switch selectedTab {
+        case .news:
+            newsNavigationPath.append(destination)
+        case .saved:
+            savedNavigationPath.append(destination)
+        case .search:
+            searchNavigationPath.append(destination)
+        case .map:
+            mapNavigationPath.append(destination)
+        case .more:
+            moreNavigationPath.append(destination)
+        }
+    }
+    
+    // Helper to remove last item from current tab's navigation path
+    private func removeLastFromCurrentNavigationPath() {
+        switch selectedTab {
+        case .news:
+            if !newsNavigationPath.isEmpty {
+                newsNavigationPath.removeLast()
+            }
+        case .saved:
+            if !savedNavigationPath.isEmpty {
+                savedNavigationPath.removeLast()
+            }
+        case .search:
+            if !searchNavigationPath.isEmpty {
+                searchNavigationPath.removeLast()
+            }
+        case .map:
+            if !mapNavigationPath.isEmpty {
+                mapNavigationPath.removeLast()
+            }
+        case .more:
+            if !moreNavigationPath.isEmpty {
+                moreNavigationPath.removeLast()
+            }
+        }
+    }
+    
+    // Clear navigation stack for a specific tab (useful for tab switching)
+    func clearNavigationPath(for tab: TabItem? = nil) {
+        let targetTab = tab ?? selectedTab
+        switch targetTab {
+        case .news:
+            newsNavigationPath = NavigationPath()
+        case .saved:
+            savedNavigationPath = NavigationPath()
+        case .search:
+            searchNavigationPath = NavigationPath()
+        case .map:
+            mapNavigationPath = NavigationPath()
+        case .more:
+            moreNavigationPath = NavigationPath()
         }
     }
 }
 
 // Navigation destinations
+enum NavigationDestination: Hashable {
+    case search
+    case article(ArticleDestination)
+}
+
 struct ArticleDestination: Hashable {
     let title: String?  // Optional - will be extracted from URL if nil
     let url: URL

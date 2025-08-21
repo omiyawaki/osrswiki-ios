@@ -10,6 +10,30 @@ import SwiftUI
 import WebKit
 import Combine
 
+// MARK: - Notification Names
+extension Notification.Name {
+    static let showAppearanceSettings = Notification.Name("showAppearanceSettings")
+}
+
+// MARK: - Color Extension for Hex Conversion
+extension Color {
+    func toHexString() -> String {
+        let uiColor = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        let r = Int(red * 255.0)
+        let g = Int(green * 255.0)
+        let b = Int(blue * 255.0)
+        
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+}
+
 // MARK: - Supporting Types
 
 /// Save state enum matching Android PageActionBarManager.SaveState
@@ -37,22 +61,26 @@ class ArticleViewModel: NSObject, ObservableObject {
     let pageUrl: URL
     let pageTitle_: String?
     let pageId: Int?
+    let collapseTablesEnabled: Bool
     
     weak var webView: WKWebView?
     private var cancellables = Set<AnyCancellable>()
     private var progressObserver: NSKeyValueObservation?
     private let contentLoader = osrsPageContentLoader()
+    private let savedPagesRepository = SavedPagesRepository()
     
-    init(pageUrl: URL, pageTitle: String? = nil, pageId: Int? = nil) {
+    init(pageUrl: URL, pageTitle: String? = nil, pageId: Int? = nil, collapseTablesEnabled: Bool = true) {
         self.pageUrl = pageUrl
         self.pageTitle_ = pageTitle
         self.pageId = pageId
+        self.collapseTablesEnabled = collapseTablesEnabled
         super.init()
     }
     
     func setWebView(_ webView: WKWebView) {
         self.webView = webView
         setupWebViewObservers()
+        checkIfPageIsSaved()
     }
     
     private func setupWebViewObservers() {
@@ -123,11 +151,31 @@ class ArticleViewModel: NSObject, ObservableObject {
                     self.loadingProgress = 0.1
                 }
                 
-                // Build URL using actual title
-                let encodedTitle = titleToLoad.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? titleToLoad
-                let urlString = "https://oldschool.runescape.wiki/api.php?action=parse&format=json&prop=text|displaytitle|revid&disablelimitreport=1&wrapoutputclass=mw-parser-output&page=\(encodedTitle)"
+                // CRITICAL FIX: Extract page name from URL, convert underscores to spaces
+                // MediaWiki API expects display title (spaces), not URL path (underscores)
+                let originalUrlString = pageUrl.absoluteString
+                let pageTitle: String
+                if let range = originalUrlString.range(of: "/w/") {
+                    let urlPageName = String(originalUrlString[range.upperBound...])
+                    // Convert URL encoding back to display title: %26 -> &, _ -> space
+                    pageTitle = urlPageName.removingPercentEncoding?.replacingOccurrences(of: "_", with: " ") ?? titleToLoad
+                } else {
+                    // Fallback to extracted title
+                    pageTitle = titleToLoad
+                }
                 
-                guard let url = URL(string: urlString) else {
+                // FIXED: Use URLComponents to avoid double-encoding
+                var components = URLComponents(string: "https://oldschool.runescape.wiki/api.php")!
+                components.queryItems = [
+                    URLQueryItem(name: "action", value: "parse"),
+                    URLQueryItem(name: "format", value: "json"),
+                    URLQueryItem(name: "prop", value: "text|displaytitle|revid"),
+                    URLQueryItem(name: "disablelimitreport", value: "1"),
+                    URLQueryItem(name: "wrapoutputclass", value: "mw-parser-output"),
+                    URLQueryItem(name: "page", value: pageTitle)  // No pre-encoding needed!
+                ]
+                
+                guard let url = components.url else {
                     await MainActor.run {
                         self.errorMessage = "Invalid URL"
                         self.isLoading = false
@@ -135,9 +183,8 @@ class ArticleViewModel: NSObject, ObservableObject {
                     return
                 }
                 
-                print("🌐 ArticleViewModel: Requesting title: '\(titleToLoad)'")
-                print("🌐 ArticleViewModel: Encoded as: '\(encodedTitle)'")
-                print("🌐 ArticleViewModel: Full URL: \(urlString)")
+                print("🌐 ArticleViewModel: Extracted page title: '\(pageTitle)'")
+                print("🌐 ArticleViewModel: URLComponents URL: '\(url.absoluteString)'")
                 
                 // Update progress
                 await MainActor.run {
@@ -193,22 +240,56 @@ class ArticleViewModel: NSObject, ObservableObject {
                     self.loadingProgress = 0.7
                 }
                 
-                // Build HTML using the HTML builder directly
+                // Process the HTML to remove unwanted sections (matching Android behavior)
+                let processedHtml = removeUnwantedInfoboxSections(from: htmlContent)
+                print("📄 ArticleViewModel: Processed HTML - removed unwanted sections")
+                
+                // Build HTML using the HTML builder directly (without asset links for WKUserScript injection)
                 let htmlBuilder = osrsPageHtmlBuilder()
                 let finalHtml = htmlBuilder.buildFullHtmlDocument(
                     title: displaytitle ?? title,
-                    bodyContent: htmlContent,
+                    bodyContent: processedHtml,
                     theme: theme,
-                    collapseTablesEnabled: true
+                    collapseTablesEnabled: collapseTablesEnabled,
+                    includeAssetLinks: true   // Option B: Generate <link> and <script> tags for ios-assets:// URLs
                 )
                 
                 print("🏗️ ArticleViewModel: Built HTML document (\(finalHtml.count) characters)")
+                
+                // DEBUG: Check if the correct custom scheme URLs are in the HTML
+                let expectedScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+                print("🔍 Checking HTML for scheme: \(expectedScheme)://")
+                
+                if finalHtml.contains("\(expectedScheme)://") {
+                    print("✅ HTML contains \(expectedScheme):// URLs")
+                    let customLinks = finalHtml.components(separatedBy: "\n").filter { $0.contains("\(expectedScheme)://") }
+                    print("📋 Found \(customLinks.count) \(expectedScheme):// links in HTML")
+                    if customLinks.count > 0 {
+                        print("📋 First few links: \(customLinks.prefix(3))")
+                    }
+                } else {
+                    print("❌ HTML does NOT contain \(expectedScheme):// URLs - Option B not working!")
+                    // Check what schemes are actually in the HTML
+                    if finalHtml.contains("://") {
+                        let allSchemes = finalHtml.components(separatedBy: "\n")
+                            .filter { $0.contains("://") }
+                            .compactMap { line in
+                                let components = line.components(separatedBy: "://")
+                                return components.count > 1 ? components[0].components(separatedBy: "\"").last : nil
+                            }
+                            .prefix(5)
+                        print("🔍 Found these schemes in HTML instead: \(Array(Set(allSchemes)))")
+                    }
+                }
                 
                 // Load in WebView on main thread
                 await MainActor.run {
                     self.loadingProgress = 0.9
                     self.pageTitle = displaytitle ?? title
-                    self.loadCustomHtml(finalHtml)
+                    self.loadCustomHtml(finalHtml, theme: theme)
+                    
+                    // Check if this page is already saved
+                    self.checkIfPageIsSaved()
                 }
                 
             } catch {
@@ -223,6 +304,44 @@ class ArticleViewModel: NSObject, ObservableObject {
     
     func reloadArticle(theme: any osrsThemeProtocol = osrsLightTheme()) {
         loadArticle(theme: theme)
+    }
+    
+    /// Remove unwanted infobox sections that should be hidden by default
+    /// Matches Android's preprocessHtml behavior in PageAssetDownloader.kt
+    private func removeUnwantedInfoboxSections(from html: String) -> String {
+        var processedHtml = html
+        
+        // Selectors to remove (matching Android)
+        let selectorsToRemove = [
+            "advanced-data",
+            "leagues-global-flag",
+            "infobox-padding"
+        ]
+        
+        for selector in selectorsToRemove {
+            // Pattern to match <tr> elements with the class anywhere in the class attribute
+            let pattern = "<tr[^>]*?class=[\"'][^\"']*?\(selector)[^\"']*?[\"'][^>]*?>.*?</tr>"
+            
+            do {
+                let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+                let matches = regex.matches(in: processedHtml, range: NSRange(location: 0, length: processedHtml.utf16.count))
+                
+                if matches.count > 0 {
+                    print("🔍 ArticleViewModel: Found \(matches.count) elements with class '\(selector)' to remove")
+                }
+                
+                // Remove matches in reverse order to maintain correct indices
+                for match in matches.reversed() {
+                    if let range = Range(match.range, in: processedHtml) {
+                        processedHtml.removeSubrange(range)
+                    }
+                }
+            } catch {
+                print("❌ ArticleViewModel: Failed to create regex for selector '\(selector)': \(error)")
+            }
+        }
+        
+        return processedHtml
     }
     
     private func handleDownloadProgress(_ progress: osrsDownloadProgress, theme: any osrsThemeProtocol) {
@@ -245,7 +364,7 @@ class ArticleViewModel: NSObject, ObservableObject {
             let finalHtml = contentLoader.buildFullHtmlDocument(
                 pageContent: pageContent,
                 theme: theme,
-                collapseTablesEnabled: true // TODO: Get from user preferences
+                collapseTablesEnabled: collapseTablesEnabled
             )
             
             print("🏗️ ArticleViewModel: Built custom HTML document (\(finalHtml.count) characters)")
@@ -254,7 +373,7 @@ class ArticleViewModel: NSObject, ObservableObject {
             pageTitle = pageContent.parseResult.displaytitle ?? pageContent.parseResult.title ?? "OSRS Wiki"
             
             // Load the custom HTML in WebView
-            loadCustomHtml(finalHtml)
+            loadCustomHtml(finalHtml, theme: theme)
             
         case .failure(let error):
             print("❌ ArticleViewModel: Failed to load content: \(error.localizedDescription)")
@@ -263,22 +382,26 @@ class ArticleViewModel: NSObject, ObservableObject {
         }
     }
     
-    private func loadCustomHtml(_ html: String) {
+    private func loadCustomHtml(_ html: String, theme: any osrsThemeProtocol = osrsLightTheme()) {
         guard let webView = webView else { return }
         
         print("🌐 ArticleViewModel: Loading custom HTML in WebView")
         print("🌐 ArticleViewModel: HTML content length: \(html.count) characters")
         
-        // Enhanced loading with improved CSS/JS injection from test environment learnings
-        let enhancedHtml = buildEnhancedHtmlWithWorkingCSS(originalHtml: html)
+        // Keep wiki base URL for content
+        // CRITICAL FIX: Use custom scheme baseURL to avoid mixed content security blocking
+        // WebKit treats custom schemes as insecure and blocks them when baseURL is HTTPS
+        let customScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+        let customBaseURL = URL(string: "\(customScheme)://localhost/")!
+        print("🔧 CRITICAL FIX: Using custom scheme baseURL: \(customBaseURL) instead of HTTPS")
+        print("🔧 This resolves WebKit mixed content security blocking that prevented WKURLSchemeHandler from being called")
         
-        // Use Android-style loading with proper base URL
-        let baseURL = URL(string: "https://oldschool.runescape.wiki/")!
-        print("🌐 ArticleViewModel: Loading with baseURL: \(baseURL)")
+        // Option B: Skip WKUserScript injection - assets loaded via WKURLSchemeHandler
+        print("📱 Option B: Skipping WKUserScript injection - using WKURLSchemeHandler for asset loading")
         
-        webView.loadHTMLString(enhancedHtml, baseURL: baseURL)
+        webView.loadHTMLString(html, baseURL: customBaseURL)
         
-        // Reveal body after loading, like Android does
+        // Apply theme colors and reveal body after loading, like Android does
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             print("🌐 ArticleViewModel: Revealing body and completing load...")
             self.revealBody(webView: webView)
@@ -290,6 +413,332 @@ class ArticleViewModel: NSObject, ObservableObject {
                 print("✅ ArticleViewModel: Loading completed!")
             }
         }
+    }
+    
+    private func injectBundleAssetsViaUserScript(webView: WKWebView) {
+        print("🎨 ArticleViewModel: Injecting CSS/JS assets via WKUserScript")
+        
+        // Remove any existing user scripts to avoid duplicates
+        webView.configuration.userContentController.removeAllUserScripts()
+        
+        // Inject CSS files
+        let cssAssets = [
+            "themes.css",
+            "base.css", 
+            "fonts.css",
+            "layout.css",
+            "components.css",
+            "wiki-integration.css",
+            "navbox_styles.css",
+            "collapsible_tables.css",
+            "collapsible_sections.css",
+            "switch_infobox_styles.css",
+            "fixes.css"
+        ]
+        
+        // Load and inject CSS
+        var combinedCSS = ""
+        for cssFile in cssAssets {
+            if let path = Bundle.main.path(forResource: cssFile, ofType: nil),
+               let cssContent = try? String(contentsOfFile: path) {
+                combinedCSS += cssContent + "\n"
+                print("✅ Loaded CSS: \(cssFile)")
+            } else {
+                print("❌ Failed to load CSS: \(cssFile)")
+            }
+        }
+        
+        if !combinedCSS.isEmpty {
+            let cssInjectionScript = """
+            var style = document.createElement('style');
+            style.innerHTML = `\(combinedCSS.replacingOccurrences(of: "`", with: "\\`"))`;
+            document.head.appendChild(style);
+            console.log('📱 iOS: Injected CSS styles via WKUserScript');
+            """
+            
+            let cssUserScript = WKUserScript(source: cssInjectionScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            webView.configuration.userContentController.addUserScript(cssUserScript)
+        }
+        
+        // Inject JavaScript files
+        let jsAssets = [
+            "startup.js",
+            "tablesort.min.js",
+            "tablesort_init.js", 
+            "collapsible_content.js",
+            "infobox_switcher_bootstrap.js",
+            "switch_infobox.js",
+            "horizontal_scroll_interceptor.js",
+            "responsive_videos.js",
+            "clipboard_bridge.js"
+        ]
+        
+        // Load and inject JavaScript
+        for jsFile in jsAssets {
+            if let path = Bundle.main.path(forResource: jsFile, ofType: nil),
+               let jsContent = try? String(contentsOfFile: path) {
+                
+                let jsInjectionScript = """
+                \(jsContent)
+                console.log('📱 iOS: Loaded JS script: \(jsFile)');
+                """
+                
+                let jsUserScript = WKUserScript(source: jsInjectionScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+                webView.configuration.userContentController.addUserScript(jsUserScript)
+                print("✅ Injected JS: \(jsFile)")
+            } else {
+                print("❌ Failed to load JS: \(jsFile)")
+            }
+        }
+        
+        print("🎨 ArticleViewModel: Asset injection complete")
+    }
+    
+    /// Inject theme colors into WebView (called from ArticleWebView.updateUIView)
+    func injectThemeColors(_ themeManager: osrsThemeManager) {
+        // Option B: Apply theme colors and final styling touches to achieve Android parity
+        guard let webView = webView else { return }
+        
+        print("🎨 Option B: Applying theme colors and final styling for Android parity")
+        applyThemeColors(webView: webView, themeManager: themeManager) {
+            print("✅ Option B: Theme colors applied successfully")
+            
+            // Apply additional styling fixes for complete Android parity
+            self.applyFinalStylingFixes(webView: webView)
+        }
+    }
+    
+    /// Apply iOS theme colors as CSS variables to match Android behavior
+    private func applyThemeColors(webView: WKWebView, themeManager: osrsThemeManager, completion: @escaping () -> Void) {
+        print("🎨 ArticleViewModel: Applying iOS theme colors as CSS variables")
+        
+        // Get current theme colors from iOS theme manager
+        let currentTheme = themeManager.currentTheme
+        
+        // Map iOS theme colors to CSS variables (matching Android's colorSurfaceVariant etc)
+        let themeColors: [String: String] = [
+            "--colorsurface": currentTheme.surface.toHexString(),
+            "--coloronsurface": currentTheme.onSurface.toHexString(),
+            "--colorsurfacevariant": currentTheme.surfaceVariant.toHexString(),
+            "--coloronsurfacevariant": currentTheme.onSurfaceVariant.toHexString(),
+            "--colorprimarycontainer": currentTheme.primaryContainer.toHexString(),
+            "--coloronprimarycontainer": currentTheme.onPrimaryContainer.toHexString(),
+            "--coloroutline": currentTheme.outline.toHexString(),
+            "--ooui-interface": currentTheme.surfaceVariant.toHexString(),
+            "--ooui-interface-border": currentTheme.outline.toHexString()
+        ]
+        
+        // Build JavaScript object string
+        let jsObjectEntries = themeColors.map { key, value in
+            "    '\(key)': '\(value)'"
+        }.joined(separator: ",\n")
+        
+        // Create JavaScript to inject CSS custom properties
+        let script = """
+        (function() {
+            try {
+                console.log('📱 iOS: Starting theme color and font injection...');
+                
+                const themeColors = {
+                \(jsObjectEntries)
+                };
+                
+                console.log('📱 iOS: Theme colors object created:', themeColors);
+                
+                for (const [key, value] of Object.entries(themeColors)) {
+                    document.documentElement.style.setProperty(key, value);
+                }
+                console.log('📱 iOS: Applied theme colors as CSS variables');
+                
+                // FEATURE PARITY FIX 1: Remove edit links like Android does
+                console.log('📱 iOS: Removing [edit | edit source] links for Android parity');
+                const editLinks = document.querySelectorAll('span.mw-editsection');
+                editLinks.forEach(link => {
+                    link.remove();
+                });
+                console.log('📱 iOS: Removed', editLinks.length, 'edit links');
+                
+                // FEATURE PARITY FIX 2: Apply Alegreya font to page title and headings like Android
+                console.log('📱 iOS: Starting Alegreya font application...');
+                
+                // Test document state
+                console.log('📱 iOS: Document ready state:', document.readyState);
+                console.log('📱 iOS: Document body exists:', !!document.body);
+                
+                const pageHeader = document.querySelector('h1.page-header');
+                const allHeadings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                
+                console.log('📱 iOS: Found page header:', !!pageHeader);
+                console.log('📱 iOS: Found', allHeadings.length, 'headings total');
+                
+                // Test font availability using different methods
+                console.log('📱 iOS: Testing font availability...');
+                
+                // Method 1: Check if font is loaded
+                if (document.fonts && document.fonts.check) {
+                    const alegreyaBoldLoaded = document.fonts.check('16px "Alegreya-Bold"');
+                    const alegreyaLoaded = document.fonts.check('16px Alegreya');
+                    console.log('📱 iOS: Alegreya-Bold loaded:', alegreyaBoldLoaded);
+                    console.log('📱 iOS: Alegreya loaded:', alegreyaLoaded);
+                }
+                
+                // Method 2: Create test element to see computed font
+                const testElement = document.createElement('div');
+                testElement.style.fontFamily = '"Alegreya-Bold", "Alegreya", Georgia, serif';
+                testElement.style.fontSize = '16px';
+                testElement.textContent = 'Test';
+                testElement.style.position = 'absolute';
+                testElement.style.left = '-9999px';
+                document.body.appendChild(testElement);
+                const computedFont = window.getComputedStyle(testElement).fontFamily;
+                document.body.removeChild(testElement);
+                console.log('📱 iOS: Test element computed fontFamily:', computedFont);
+                
+                if (pageHeader) {
+                    console.log('📱 iOS: Applying font to page header...');
+                    pageHeader.style.fontFamily = '"Alegreya-Bold", "Alegreya", Georgia, serif';
+                    pageHeader.style.fontWeight = 'bold';
+                    console.log('📱 iOS: Applied font to page header');
+                    
+                    // Force style recalculation
+                    pageHeader.offsetHeight;
+                    
+                    // Check what font was actually applied
+                    const appliedFont = window.getComputedStyle(pageHeader).fontFamily;
+                    console.log('📱 iOS: Page header final computed fontFamily:', appliedFont);
+                } else {
+                    console.log('📱 iOS: No page header found');
+                }
+                
+                console.log('📱 iOS: Processing', allHeadings.length, 'headings...');
+                allHeadings.forEach((heading, index) => {
+                    try {
+                        const level = parseInt(heading.tagName.substring(1));
+                        const fontFamily = level <= 2 ? '"Alegreya-Bold", "Alegreya", Georgia, serif' : '"Alegreya-Medium", "Alegreya", Georgia, serif';
+                        const fontWeight = level <= 2 ? 'bold' : '500';
+                        
+                        heading.style.fontFamily = fontFamily;
+                        heading.style.fontWeight = fontWeight;
+                        
+                        // Force style recalculation
+                        heading.offsetHeight;
+                        
+                        // Debug first few headings
+                        if (index < 3) {
+                            const appliedFont = window.getComputedStyle(heading).fontFamily;
+                            console.log('📱 iOS: Heading', heading.tagName, 'level', level, 'set to:', fontFamily);
+                            console.log('📱 iOS: Heading', heading.tagName, 'computed fontFamily:', appliedFont);
+                            console.log('📱 iOS: Heading text:', heading.textContent.substring(0, 50));
+                        }
+                    } catch (headingError) {
+                        console.error('📱 iOS: Error processing heading', index, ':', headingError);
+                    }
+                });
+                
+                console.log('📱 iOS: ✅ Successfully applied Alegreya fonts to', allHeadings.length, 'headings');
+                
+                // DEBUG: Test if :has() selector is actually supported in this WebKit version
+                const hasSupported = CSS.supports('selector(.test:has(.child))');
+                console.log('📱 iOS WebKit :has() support:', hasSupported);
+                
+                // DEBUG: Check actual HTML structure
+                const infoboxes = document.querySelectorAll('.infobox');
+                console.log('📱 iOS: Found', infoboxes.length, 'infoboxes');
+                
+                console.log('📱 iOS: ✅ All styling fixes completed successfully');
+                
+            } catch (error) {
+                console.error('📱 iOS: CRITICAL ERROR in theme/font injection:', error);
+                console.error('📱 iOS: Error name:', error.name);
+                console.error('📱 iOS: Error message:', error.message);
+                console.error('📱 iOS: Error stack:', error.stack);
+                
+                // Try to continue with minimal fixes if main script fails
+                try {
+                    console.log('📱 iOS: Attempting fallback font application...');
+                    const pageHeader = document.querySelector('h1.page-header');
+                    if (pageHeader) {
+                        pageHeader.style.fontFamily = 'Alegreya-Bold, Georgia, serif';
+                        console.log('📱 iOS: Fallback - applied font to page header');
+                    }
+                } catch (fallbackError) {
+                    console.error('📱 iOS: Even fallback failed:', fallbackError);
+                }
+            }
+        })();
+        """
+        
+        print("🎨 ArticleViewModel: Evaluating theme color injection JavaScript")
+        webView.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ ArticleViewModel: Theme color injection failed: \(error.localizedDescription)")
+            } else {
+                print("✅ ArticleViewModel: Theme colors applied successfully")
+            }
+            completion()
+        }
+    }
+    
+    /// Apply final styling fixes for complete Android parity
+    private func applyFinalStylingFixes(webView: WKWebView) {
+        print("🎨 ArticleViewModel: Applying final styling fixes for Android parity")
+        
+        let finalStylingScript = """
+        (function() {
+            console.log('🎨 iOS: Applying final styling fixes for complete Android parity');
+            
+            // Apply colorSurfaceVariant background to collapsible containers
+            const collapsibleContainers = document.querySelectorAll('.navbox, .collapsible, .mw-collapsible');
+            collapsibleContainers.forEach(container => {
+                container.style.backgroundColor = 'var(--colorsurfacevariant)';
+                container.style.border = '1px solid var(--coloroutline)';
+            });
+            
+            // Ensure infoboxes use the proper theme colors
+            const infoboxes = document.querySelectorAll('.infobox');
+            infoboxes.forEach(infobox => {
+                infobox.style.backgroundColor = 'var(--colorsurfacevariant)';
+                infobox.style.border = '2px solid var(--coloroutline)';
+            });
+            
+            console.log('✅ iOS: Final styling fixes applied successfully');
+        })();
+        """
+        
+        webView.evaluateJavaScript(finalStylingScript) { result, error in
+            if let error = error {
+                print("❌ ArticleViewModel: Final styling fixes failed: \(error.localizedDescription)")
+            } else {
+                print("✅ ArticleViewModel: Final styling fixes applied successfully")
+            }
+        }
+    }
+    
+    /// Build HTML with proper asset links matching Android's approach
+    private func buildHtmlWithAssetLinks(originalHtml: String, theme: any osrsThemeProtocol) -> String {
+        print("🔗 ArticleViewModel: Building HTML with iOS asset links")
+        
+        // Extract body content and title from original HTML
+        let bodyContent = extractBodyContent(from: originalHtml)
+        let titleContent = extractTitleContent(from: originalHtml) ?? pageTitle
+        
+        // Use osrsPageHtmlBuilder to generate HTML with asset links
+        let htmlBuilder = osrsPageHtmlBuilder()
+        var htmlWithLinks = htmlBuilder.buildFullHtmlDocument(
+            title: titleContent,
+            bodyContent: bodyContent,
+            theme: theme,
+            collapseTablesEnabled: collapseTablesEnabled,
+            includeAssetLinks: true  // This generates <link> and <script> tags
+        )
+        
+        // Replace href and src attributes to use ios-assets:// scheme
+        htmlWithLinks = htmlWithLinks
+            .replacingOccurrences(of: "href=\"", with: "href=\"ios-assets://localhost/")
+            .replacingOccurrences(of: "src=\"", with: "src=\"ios-assets://localhost/")
+        
+        print("🔗 ArticleViewModel: Generated HTML with iOS asset links (\(htmlWithLinks.count) characters)")
+        return htmlWithLinks
     }
     
     private func buildEnhancedHtmlWithWorkingCSS(originalHtml: String) -> String {
@@ -675,20 +1124,8 @@ class ArticleViewModel: NSObject, ObservableObject {
         errorMessage = nil
     }
     
-    // JavaScript bridge methods
-    func injectThemeColors(_ themeManager: osrsThemeManager) {
-        let webViewColors = themeManager.getWebViewColors()
-        let themeScript = webViewColors.generateJavaScript()
-        
-        print("🎨 ArticleViewModel: Injecting OSRS theme colors")
-        webView?.evaluateJavaScript(themeScript) { result, error in
-            if let error = error {
-                print("❌ ArticleViewModel: Theme injection failed: \(error)")
-            } else {
-                print("✅ ArticleViewModel: Theme colors injected successfully")
-            }
-        }
-    }
+    // JavaScript bridge methods - updated to match Android CSS variable injection
+    // (Note: The injectThemeColors implementation is now at line 395)
     
     func extractTableOfContents() {
         let tocScript = """
@@ -793,6 +1230,13 @@ extension ArticleViewModel: WKNavigationDelegate {
     }
     
     private func shouldOpenExternally(_ url: URL) -> Bool {
+        // CRITICAL: Allow our custom scheme for WKURLSchemeHandler
+        let customScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+        if url.scheme == customScheme {
+            print("🔧 Allowing internal navigation for custom scheme: \(url.scheme ?? "nil")")
+            return false // Keep internal for our custom asset scheme
+        }
+        
         // Open non-wiki links externally
         let wikiDomains = ["oldschool.runescape.wiki", "runescape.wiki"]
         guard let host = url.host else { return true }
@@ -801,51 +1245,204 @@ extension ArticleViewModel: WKNavigationDelegate {
     
     // MARK: - Bottom Bar Actions
     
+    /// Check if current page is already saved - matches Android PageReadingListManager.observeAndRefreshSaveButtonState()
+    private func checkIfPageIsSaved() {
+        guard !pageTitle.isEmpty else { return }
+        
+        let savedPages = savedPagesRepository.getSavedPages()
+        let cleanTitle = cleanPageTitle(pageTitle)
+        let isAlreadySaved = savedPages.contains { savedPage in
+            savedPage.url == pageUrl || savedPage.title == cleanTitle || savedPage.title == pageTitle
+        }
+        
+        isBookmarked = isAlreadySaved
+        saveState = isAlreadySaved ? .saved : .notSaved
+        saveProgress = isAlreadySaved ? 1.0 : 0.0
+        
+        print("🔖 ArticleViewModel: Checked save status - isBookmarked: \(isBookmarked), saveState: \(saveState)")
+    }
+    
     /// Save/bookmark toggle action - matches Android PageReadingListManager functionality
     func performSaveAction() {
         guard saveState != .downloading else { return }
         
+        print("🔖 ArticleViewModel: Save action triggered - current state: \(saveState), bookmarked: \(isBookmarked)")
+        
         if isBookmarked {
-            // Remove from saved pages
+            // Remove from saved pages - matches Android unsaving logic
             saveState = .downloading
             saveProgress = 0.0
             
-            // Simulate unsaving process (replace with actual repository call)
             Task {
-                for progress in stride(from: 0.0, through: 1.0, by: 0.1) {
-                    await MainActor.run {
-                        self.saveProgress = progress
+                do {
+                    // Find and remove the saved page
+                    let savedPages = savedPagesRepository.getSavedPages()
+                    if let savedPage = savedPages.first(where: { $0.url == pageUrl || $0.title == pageTitle }) {
+                        // Show progress while removing
+                        for progress in stride(from: 0.0, through: 1.0, by: 0.2) {
+                            await MainActor.run {
+                                self.saveProgress = progress
+                            }
+                            try await Task.sleep(nanoseconds: 50_000_000) // 0.05 second
+                        }
+                        
+                        // Remove from repository
+                        savedPagesRepository.removeSavedPage(savedPage.id)
+                        
+                        await MainActor.run {
+                            self.isBookmarked = false
+                            self.saveState = .notSaved
+                            self.saveProgress = 0.0
+                            print("✅ ArticleViewModel: Successfully removed page from saved pages")
+                        }
+                    } else {
+                        await MainActor.run {
+                            self.saveState = .error
+                            print("❌ ArticleViewModel: Could not find saved page to remove")
+                        }
                     }
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-                }
-                
-                await MainActor.run {
-                    self.isBookmarked = false
-                    self.saveState = .notSaved
-                    self.saveProgress = 0.0
+                } catch {
+                    await MainActor.run {
+                        self.saveState = .error
+                        print("❌ ArticleViewModel: Error removing saved page: \(error)")
+                    }
                 }
             }
         } else {
-            // Save for offline reading
+            // Save for offline reading - matches Android saving logic
             saveState = .downloading
             saveProgress = 0.0
             
-            // Simulate saving process (replace with actual repository call)
             Task {
-                for progress in stride(from: 0.0, through: 1.0, by: 0.1) {
-                    await MainActor.run {
-                        self.saveProgress = progress
+                do {
+                    print("🔄 ArticleViewModel: Starting page save process...")
+                    
+                    // Step 1: Fetch page metadata from API
+                    await MainActor.run { self.saveProgress = 0.1 }
+                    
+                    let metadata = await fetchPageMetadata()
+                    
+                    // Step 2: Create SavedPage object with proper metadata
+                    await MainActor.run { self.saveProgress = 0.2 }
+                    
+                    let savedPage = SavedPage(
+                        id: UUID().uuidString,
+                        title: cleanPageTitle(pageTitle),
+                        description: metadata.description ?? extractPageDescription(),
+                        url: pageUrl,
+                        thumbnailUrl: metadata.thumbnailUrl ?? extractThumbnailUrl(),
+                        savedDate: Date(),
+                        isOfflineAvailable: false // TODO: Implement offline content storage
+                    )
+                    
+                    // Step 3: Save page metadata to repository
+                    await MainActor.run { self.saveProgress = 0.3 }
+                    
+                    savedPagesRepository.addSavedPage(savedPage)
+                    print("📱 ArticleViewModel: Added page metadata to repository")
+                    
+                    // Step 4: Download and cache page content (simulate like Android SavedPageSyncWorker)
+                    await MainActor.run { self.saveProgress = 0.5 }
+                    
+                    // TODO: Implement actual content downloading like Android's SavedPageSyncWorker
+                    // For now, simulate the download progress
+                    for progress in stride(from: 0.5, through: 0.9, by: 0.1) {
+                        await MainActor.run {
+                            self.saveProgress = progress
+                        }
+                        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
                     }
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-                }
-                
-                await MainActor.run {
-                    self.isBookmarked = true
-                    self.saveState = .saved
-                    self.saveProgress = 1.0
+                    
+                    // Step 5: Complete save process
+                    await MainActor.run {
+                        self.isBookmarked = true
+                        self.saveState = .saved
+                        self.saveProgress = 1.0
+                        print("✅ ArticleViewModel: Successfully saved page")
+                    }
+                    
+                } catch {
+                    await MainActor.run {
+                        self.saveState = .error
+                        self.saveProgress = 0.0
+                        print("❌ ArticleViewModel: Error saving page: \(error)")
+                    }
                 }
             }
         }
+    }
+    
+    /// Clean page title by removing HTML tags - matches Android title cleaning
+    private func cleanPageTitle(_ title: String) -> String {
+        // Remove HTML tags like <span class="mw-page-title-main">Varrock</span>
+        let cleanTitle = title.replacingOccurrences(of: #"<[^>]*>"#, with: "", options: .regularExpression)
+        return cleanTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    /// Fetch page metadata from MediaWiki API - matches Android metadata extraction
+    private func fetchPageMetadata() async -> (description: String?, thumbnailUrl: URL?) {
+        let cleanTitle = cleanPageTitle(pageTitle)
+        
+        // Build MediaWiki API URL to get page info and images
+        var components = URLComponents(string: "https://oldschool.runescape.wiki/api.php")!
+        components.queryItems = [
+            URLQueryItem(name: "action", value: "query"),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "formatversion", value: "2"),
+            URLQueryItem(name: "titles", value: cleanTitle),
+            URLQueryItem(name: "prop", value: "extracts|pageimages"),
+            URLQueryItem(name: "exintro", value: "1"), // Only intro section
+            URLQueryItem(name: "explaintext", value: "1"), // Plain text, not HTML
+            URLQueryItem(name: "exsectionformat", value: "plain"),
+            URLQueryItem(name: "exchars", value: "200"), // Limit to 200 characters
+            URLQueryItem(name: "piprop", value: "thumbnail"),
+            URLQueryItem(name: "pithumbsize", value: "200") // 200px thumbnail
+        ]
+        
+        guard let url = components.url else {
+            print("❌ ArticleViewModel: Failed to build metadata API URL")
+            return (nil, nil)
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let query = json["query"] as? [String: Any],
+               let pages = query["pages"] as? [[String: Any]],
+               let page = pages.first {
+                
+                // Extract description
+                let description = page["extract"] as? String
+                
+                // Extract thumbnail URL
+                var thumbnailUrl: URL?
+                if let thumbnail = page["thumbnail"] as? [String: Any],
+                   let thumbnailSource = thumbnail["source"] as? String {
+                    thumbnailUrl = URL(string: thumbnailSource)
+                }
+                
+                print("📱 ArticleViewModel: Fetched metadata - description: \(description?.prefix(50) ?? "nil"), thumbnail: \(thumbnailUrl?.absoluteString ?? "nil")")
+                
+                return (description, thumbnailUrl)
+            }
+        } catch {
+            print("❌ ArticleViewModel: Error fetching page metadata: \(error)")
+        }
+        
+        return (nil, nil)
+    }
+    
+    /// Extract page description from current content - matches Android getSnippet() functionality
+    private func extractPageDescription() -> String? {
+        // Fallback description if metadata fetch fails
+        return "OSRS Wiki article: \(cleanPageTitle(pageTitle))"
+    }
+    
+    /// Extract thumbnail URL from current content - matches Android getThumbnailUrl() functionality  
+    private func extractThumbnailUrl() -> URL? {
+        // Fallback - will be replaced by API metadata
+        return nil
     }
     
     /// Find in page action - matches Android FindInPageManager functionality
@@ -858,18 +1455,41 @@ extension ArticleViewModel: WKNavigationDelegate {
                 e.classList.remove('collapsible-closed'); 
             });
         """
-        webView.evaluateJavaScript(expandScript, completionHandler: nil)
+        webView.evaluateJavaScript(expandScript) { [weak self] (_, error) in
+            if let error = error {
+                print("🚨 ArticleViewModel: Error expanding collapsible content: \(error)")
+            }
+            
+            // After expanding content, present the native find interface
+            DispatchQueue.main.async {
+                self?.presentNativeFindInterface()
+            }
+        }
         
-        // TODO: Implement iOS native find-in-page functionality
-        // This would typically use WKWebView's built-in search or a custom overlay
         print("🔍 ArticleViewModel: Find in page requested - expanding collapsible content")
+    }
+    
+    /// Present native iOS find interface using UIFindInteraction (iOS 16+)
+    private func presentNativeFindInterface() {
+        guard let webView = webView else { return }
+        
+        if #available(iOS 16.0, *) {
+            // Use native UIFindInteraction for iOS 16+
+            webView.findInteraction?.presentFindNavigator(showingReplace: false)
+            print("🔍 ArticleViewModel: Presented native find interface (iOS 16+)")
+        } else {
+            // Fallback for iOS 14-15: Use basic findString API
+            // Note: This requires user input, so we'd need a custom UI
+            print("🔍 ArticleViewModel: iOS 16+ required for full find interface. Consider implementing custom UI for older iOS versions.")
+        }
     }
     
     /// Appearance/theme action - matches Android AppearanceSettingsActivity
     func performAppearanceAction() {
-        // TODO: Navigate to appearance settings
-        // This should open the AppearanceSettingsView
-        print("🎨 ArticleViewModel: Appearance settings requested")
+        // Navigate to appearance settings by sending notification
+        // This matches Android's behavior of launching AppearanceSettingsActivity
+        NotificationCenter.default.post(name: .showAppearanceSettings, object: nil)
+        print("🎨 ArticleViewModel: Navigating to appearance settings")
     }
     
     /// Contents action - matches Android ContentsHandler functionality  

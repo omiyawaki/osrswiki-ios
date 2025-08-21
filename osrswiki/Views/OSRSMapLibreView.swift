@@ -30,35 +30,29 @@ struct osrsMapLibreView: View {
     }
     
     var body: some View {
-        NavigationStack(path: $appState.navigationPath) {
-            ZStack {
-                // MapLibre Native view
-                osrsMapLibreMapView(currentFloor: $currentFloor)
-                    .ignoresSafeArea(.all, edges: .top)
-                
-                // Floor controls and compass overlay
-                VStack {
-                    HStack(alignment: .top) {
-                        osrsFloorControlsView(
-                            currentFloor: $currentFloor,
-                            maxFloor: maxFloor
-                        )
-                        .padding(.leading, 16)
-                        .padding(.top, 60) // Position where title used to be
-                        
-                        Spacer()
-                        
-                        osrsCompassView()
-                            .padding(.trailing, 16)
-                            .padding(.top, 60) // Align with floor controls
-                    }
+        ZStack {
+            // MapLibre Native view
+            osrsMapLibreMapView(currentFloor: $currentFloor)
+                .ignoresSafeArea(.all, edges: .top)
+            
+            // Floor controls overlay aligned with compass
+            VStack {
+                HStack(alignment: .top) {
+                    osrsFloorControlsView(
+                        currentFloor: $currentFloor,
+                        maxFloor: maxFloor
+                    )
+                    .padding(.leading, 8) // Match compass right margin (8pt from screen edge)
+                    .padding(.top, 8) // Match compass top margin
                     
                     Spacer()
                 }
+                
+                Spacer()
             }
-            .navigationBarHidden(true)
-            .background(.osrsBackground)
         }
+        .navigationBarHidden(true)
+        .background(.osrsBackground)
     }
     
     // Coordinate conversion function ported from Android
@@ -76,7 +70,10 @@ struct osrsMapLibreView: View {
 struct osrsFloorControlsView: View {
     @Binding var currentFloor: Int
     let maxFloor: Int
-    @Environment(\.osrsTheme) var osrsTheme
+    
+    // Fixed compass dimensions for alignment
+    private let compassWidth: CGFloat = 40
+    private let compassHeight: CGFloat = 40
     
     var body: some View {
         VStack(spacing: 4) {
@@ -88,8 +85,8 @@ struct osrsFloorControlsView: View {
             }) {
                 Image(systemName: "chevron.up")
                     .font(.system(size: 16, weight: .medium))
-                    .frame(width: 40, height: 40)
-                    .foregroundColor(osrsTheme.onSurface)
+                    .frame(width: compassWidth, height: compassHeight)
+                    .foregroundColor(.white)
                     .background(Color.clear)
             }
             .disabled(currentFloor >= maxFloor)
@@ -98,8 +95,8 @@ struct osrsFloorControlsView: View {
             // Floor number display
             Text("\(currentFloor)")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(osrsTheme.onSurface)
-                .frame(width: 40, height: 28)
+                .foregroundColor(.white)
+                .frame(width: compassWidth, height: 28)
                 .padding(.vertical, 4)
             
             // Down arrow button
@@ -110,42 +107,21 @@ struct osrsFloorControlsView: View {
             }) {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 16, weight: .medium))
-                    .frame(width: 40, height: 40)
-                    .foregroundColor(osrsTheme.onSurface)
+                    .frame(width: compassWidth, height: compassHeight)
+                    .foregroundColor(.white)
                     .background(Color.clear)
             }
             .disabled(currentFloor <= 0)
             .opacity(currentFloor <= 0 ? 0.5 : 1.0)
         }
         .padding(4)
-        .background(osrsTheme.surface.opacity(0.9))
-        .cornerRadius(8)
+        .frame(width: compassWidth + 8) // Match compass width (40px + 8px padding)
+        .background(Color.black)
+        .clipShape(Capsule()) // Perfect semicircles at top and bottom
         .shadow(radius: 4)
     }
 }
 
-struct osrsCompassView: View {
-    @State private var heading: Double = 0
-    @Environment(\.osrsTheme) var osrsTheme
-    
-    var body: some View {
-        Button(action: {
-            // Reset rotation to north - this would be implemented with map delegate
-        }) {
-            ZStack {
-                Circle()
-                    .fill(osrsTheme.surface.opacity(0.9))
-                    .frame(width: 40, height: 40)
-                    .shadow(radius: 4)
-                
-                Image(systemName: "location.north.fill")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(osrsTheme.onSurface)
-                    .rotationEffect(.degrees(-heading))
-            }
-        }
-    }
-}
 
 struct osrsMapLibreMapView: UIViewRepresentable {
     @Binding var currentFloor: Int
@@ -157,7 +133,7 @@ struct osrsMapLibreMapView: UIViewRepresentable {
         // Configure MapLibre settings
         mapView.logoView.isHidden = true
         mapView.attributionButton.isHidden = true
-        mapView.compassView.isHidden = true
+        mapView.compassView.isHidden = false
         mapView.showsScale = false
         mapView.allowsRotating = true
         mapView.allowsTilting = false

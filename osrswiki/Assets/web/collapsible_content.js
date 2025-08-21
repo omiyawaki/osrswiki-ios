@@ -43,28 +43,87 @@
         titleWrapper.innerHTML = captionText + '<span style="font-weight: normal;">' + stateText + '</span>';
     }
 
+    function toggleCollapsible(container, titleWrapper, captionText, scrollToTop) {
+        var content = container.querySelector('.collapsible-content');
+        if (!content) return;
+        
+        var isCurrentlyCollapsed = container.classList.contains('collapsed');
+        var mapPlaceholder = content.querySelector('.mw-kartographer-map');
+        var mapId = mapPlaceholder ? mapPlaceholder.id : null;
+        
+        if (window.OsrsWikiBridge && mapId) {
+            window.OsrsWikiBridge.onCollapsibleToggled(mapId, isCurrentlyCollapsed);
+        }
+        
+        if (isCurrentlyCollapsed) {
+            container.classList.remove('collapsed');
+            content.style.height = 'auto';
+        } else {
+            container.classList.add('collapsed');
+            content.style.height = '0px';
+            
+            // Scroll to top of collapsed container if requested (from footer)
+            if (scrollToTop) {
+                setTimeout(function() {
+                    container.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                }, 100); // Small delay to let collapse animation start
+            }
+        }
+        
+        updateHeaderText(container, titleWrapper, captionText);
+    }
+
     function setupCollapsible(header, container, titleWrapper, captionText) {
         var content = container.querySelector('.collapsible-content');
         if (!content) return;
-        // CSS now handles initial collapsed state, no need for inline style
-        // if (container.classList.contains('collapsed')) {
-        //     content.style.height = '0px';
-        // }
+        
+        // Create close footer that mirrors the header design
+        var closeFooter = document.createElement('div');
+        closeFooter.className = 'collapsible-close-footer';
+        var closeButton = document.createElement('div');
+        closeButton.className = 'collapsible-close-button';
+        closeButton.setAttribute('role', 'button');
+        closeButton.setAttribute('tabindex', '0');
+        closeButton.setAttribute('aria-label', 'Collapse ' + captionText);
+        
+        var footerTitleWrapper = document.createElement('div');
+        footerTitleWrapper.className = 'title-wrapper';
+        footerTitleWrapper.textContent = 'Close';
+        
+        var icon = document.createElement('span');
+        icon.className = 'icon';
+        
+        closeButton.appendChild(footerTitleWrapper);
+        closeButton.appendChild(icon);
+        closeFooter.appendChild(closeButton);
+        content.appendChild(closeFooter);
+        
+        // Header click handler (no scroll)
         header.addEventListener('click', function() {
-            var isCurrentlyCollapsed = container.classList.contains('collapsed');
-            var mapPlaceholder = content.querySelector('.mw-kartographer-map');
-            var mapId = mapPlaceholder ? mapPlaceholder.id : null;
-            if (window.OsrsWikiBridge && mapId) {
-                window.OsrsWikiBridge.onCollapsibleToggled(mapId, isCurrentlyCollapsed);
+            toggleCollapsible(container, titleWrapper, captionText, false);
+        });
+        
+        // Close footer click handler (scroll to top)
+        closeButton.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent bubbling to container
+            // Only collapse if currently expanded
+            if (!container.classList.contains('collapsed')) {
+                toggleCollapsible(container, titleWrapper, captionText, true);
             }
-            if (isCurrentlyCollapsed) {
-                container.classList.remove('collapsed');
-                content.style.height = 'auto';
-            } else {
-                container.classList.add('collapsed');
-                content.style.height = '0px';
+        });
+        
+        // Keyboard support for close footer (scroll to top)
+        closeButton.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!container.classList.contains('collapsed')) {
+                    toggleCollapsible(container, titleWrapper, captionText, true);
+                }
             }
-            updateHeaderText(container, titleWrapper, captionText);
         });
     }
 
@@ -225,6 +284,9 @@
 
         // Add CSS class to signal transforms are complete
         document.body.classList.add('js-transforms-complete');
+        
+        // CRITICAL FIX: Initialize MapLibre widgets after collapsible setup
+        measureAndPreloadMaps();
         
         // Signal to native that styling and transforms are complete,
         // so the page can be revealed without FOUC.

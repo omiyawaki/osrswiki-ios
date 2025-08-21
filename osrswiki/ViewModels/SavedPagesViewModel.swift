@@ -70,6 +70,12 @@ class SavedPagesViewModel: ObservableObject {
         // Implementation for exporting reading list
     }
     
+    func clearAllSavedPages() {
+        savedPagesRepository.clearSavedPages()
+        savedPages.removeAll()
+        print("🗑️ SavedPagesViewModel: Cleared all saved pages")
+    }
+    
     func filteredSavedPages(searchText: String) -> [SavedPage] {
         if searchText.isEmpty {
             return savedPages

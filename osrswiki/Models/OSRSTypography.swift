@@ -146,15 +146,15 @@ extension Font {
         return Font.system(size: 12, weight: .medium)
     }()
     
-    /// Section header small caps using Alegreya SC Bold - 14pt equivalent (used for section headers)
+    /// Section header small caps using Alegreya SC Bold - 24pt equivalent (increased for proper prominence with authentic small caps)
     static let osrsSectionHeaderSmallCaps: Font = {
         let fontNames = ["AlegreyaSC-Bold", "alegreya_sc_bold", "Alegreya SC Bold", "alegreya_sc_medium", "AlegreyaSC-Medium"]
         for fontName in fontNames {
-            if UIFont(name: fontName, size: 14) != nil {
-                return Font.custom(fontName, size: 14)
+            if UIFont(name: fontName, size: 24) != nil {
+                return Font.custom(fontName, size: 24)
             }
         }
-        return Font.system(size: 14, weight: .bold)
+        return Font.system(size: 24, weight: .bold)
     }()
     
     /// Metadata small caps using Alegreya SC - 12pt equivalent

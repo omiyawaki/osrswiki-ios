@@ -22,7 +22,7 @@ class osrsPageHtmlBuilder {
         "styles/navbox_styles.css",
         "styles/collapsible_tables.css",
         "web/collapsible_sections.css",
-        "styles/infobox_switcher.css",
+        "web/switch_infobox_styles.css",
         "styles/fixes.css"
     ]
     
@@ -33,6 +33,7 @@ class osrsPageHtmlBuilder {
     
     // Base JavaScript assets
     private let jsAssetPaths = [
+        "web/map_bridge.js",  // CRITICAL: Load bridge first before other scripts need it
         "js/tablesort.min.js",
         "js/tablesort_init.js", 
         "web/collapsible_content.js",
@@ -105,7 +106,91 @@ class osrsPageHtmlBuilder {
         """
     }
     
-    func buildFullHtmlDocument(title: String, bodyContent: String, theme: any osrsThemeProtocol, collapseTablesEnabled: Bool = true) -> String {
+    private func createInlineMapBridge() -> String {
+        return """
+        <script>
+        // CRITICAL: Inline Map Bridge for iOS MapLibre integration
+        // This ensures the bridge is available as early as possible
+        (function() {
+            console.log('🚨 [INLINE-BRIDGE] Inline map bridge executing...');
+            console.log('🚨 [INLINE-BRIDGE] Document ready state:', document.readyState);
+            
+            if (window.OsrsWikiBridge) {
+                console.log('🚨 [INLINE-BRIDGE] Bridge already exists, skipping...');
+                return;
+            }
+            
+            // Create OsrsWikiBridge equivalent for iOS MapLibre integration
+            window.OsrsWikiBridge = {
+                onMapPlaceholderMeasured: function(id, rectJson, mapDataJson) {
+                    console.log('🚨 [INLINE-BRIDGE] onMapPlaceholderMeasured called:', id);
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapBridge) {
+                        window.webkit.messageHandlers.mapBridge.postMessage({
+                            action: 'onMapPlaceholderMeasured',
+                            id: id,
+                            rectJson: rectJson,
+                            mapDataJson: mapDataJson
+                        });
+                        console.log('🚨 [INLINE-BRIDGE] Message sent to native layer');
+                    } else {
+                        console.error('🚨 [INLINE-BRIDGE] webkit.messageHandlers.mapBridge not available');
+                    }
+                },
+                
+                onCollapsibleToggled: function(mapId, isOpening) {
+                    console.log('🚨 [INLINE-BRIDGE] onCollapsibleToggled called:', mapId, isOpening);
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapBridge) {
+                        window.webkit.messageHandlers.mapBridge.postMessage({
+                            action: 'onCollapsibleToggled',
+                            mapId: mapId,
+                            isOpening: isOpening
+                        });
+                    } else {
+                        console.error('🚨 [INLINE-BRIDGE] webkit.messageHandlers.mapBridge not available');
+                    }
+                },
+                
+                setHorizontalScroll: function(inProgress) {
+                    console.log('🚨 [INLINE-BRIDGE] setHorizontalScroll called:', inProgress);
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapBridge) {
+                        window.webkit.messageHandlers.mapBridge.postMessage({
+                            action: 'setHorizontalScroll',
+                            inProgress: inProgress
+                        });
+                    } else {
+                        console.error('🚨 [INLINE-BRIDGE] webkit.messageHandlers.mapBridge not available');
+                    }
+                },
+                
+                log: function(message) {
+                    console.log('🚨 [INLINE-BRIDGE] log called:', message);
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapBridge) {
+                        window.webkit.messageHandlers.mapBridge.postMessage({
+                            action: 'log',
+                            message: message
+                        });
+                    } else {
+                        console.error('🚨 [INLINE-BRIDGE] webkit.messageHandlers.mapBridge not available');
+                    }
+                }
+            };
+            
+            console.log('🗺️ iOS OsrsWikiBridge initialized and ready');
+            console.log('🚨 [INLINE-BRIDGE] Bridge object created:', typeof window.OsrsWikiBridge);
+            
+            // Test the bridge immediately if possible
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapBridge) {
+                console.log('🚨 [INLINE-BRIDGE] Testing bridge connection...');
+                window.OsrsWikiBridge.log('Inline bridge initialization test message');
+            } else {
+                console.log('🚨 [INLINE-BRIDGE] Bridge created but message handlers not yet available');
+            }
+        })();
+        </script>
+        """
+    }
+    
+    func buildFullHtmlDocument(title: String, bodyContent: String, theme: any osrsThemeProtocol, collapseTablesEnabled: Bool = true, includeAssetLinks: Bool = false) -> String {
         let startTime = CFAbsoluteTimeGetCurrent()
         
         // Clean title and prepare header
@@ -128,17 +213,36 @@ class osrsPageHtmlBuilder {
             print("\(logTag): Detected GE chart markers in content; will include highcharts widget script.")
         }
         
-        // Generate CSS links
-        let cssLinks = styleSheetAssets.map { assetPath in
-            "<link rel=\"stylesheet\" href=\"\(assetPath)\">"
-        }.joined(separator: "\n")
+        // Generate CSS links only if requested (disabled for WKUserScript injection)
+        let cssLinks: String
+        if includeAssetLinks {
+            // Get the dynamic scheme name from UserDefaults
+            let customScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+            print("\(logTag): 🔍 UserDefaults WKURLSchemeHandler_Scheme = '\(UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "nil")'")
+            print("\(logTag): 🔍 Using scheme: '\(customScheme)'")
+            
+            cssLinks = styleSheetAssets.map { assetPath in
+                // Option B: Generate custom scheme URLs for WKURLSchemeHandler
+                return "<link rel=\"stylesheet\" href=\"\(customScheme)://localhost/\(assetPath)\">"
+            }.joined(separator: "\n")
+            print("\(logTag): Including CSS asset links with \(customScheme):// URLs for Option B")
+            print("\(logTag): 📋 First CSS link: \(cssLinks.components(separatedBy: "\n").first ?? "none")")
+        } else {
+            cssLinks = "<!-- CSS assets injected via WKUserScript -->"
+            print("\(logTag): Skipping CSS links - using WKUserScript injection")
+        }
         
-        print("\(logTag): Using natural MediaWiki ResourceLoader with asset bundle loading")
-        
-        // Generate MediaWiki scripts
-        let mediawikiScripts = mediawikiArtifacts.map { assetPath in
-            "<script src=\"\(assetPath)\"></script>"
-        }.joined(separator: "\n")
+        // Generate MediaWiki scripts only if requested
+        let mediawikiScripts: String
+        if includeAssetLinks {
+            let customScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+            mediawikiScripts = mediawikiArtifacts.map { assetPath in
+                // Option B: Generate custom scheme URLs for WKURLSchemeHandler
+                return "<script src=\"\(customScheme)://localhost/\(assetPath)\"></script>"
+            }.joined(separator: "\n")
+        } else {
+            mediawikiScripts = "<!-- MediaWiki scripts injected via WKUserScript -->"
+        }
         
         // Build the JS list, conditionally appending the GE charts widget
         var dynamicJsAssets = jsAssetPaths
@@ -149,9 +253,16 @@ class osrsPageHtmlBuilder {
             ])
         }
         
-        let jsScripts = dynamicJsAssets.map { assetPath in
-            "<script src=\"\(assetPath)\"></script>"
-        }.joined(separator: "\n")
+        let jsScripts: String
+        if includeAssetLinks {
+            let customScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+            jsScripts = dynamicJsAssets.map { assetPath in
+                // Option B: Generate custom scheme URLs for WKURLSchemeHandler
+                return "<script src=\"\(customScheme)://localhost/\(assetPath)\"></script>"
+            }.joined(separator: "\n")
+        } else {
+            jsScripts = "<!-- JS assets injected via WKUserScript -->"
+        }
         
         // Generate smart MediaWiki variables
         let smartMediawikiVariables = generateMediaWikiVariables(title: cleanedTitle, bodyContent: cleanedBodyContent)
@@ -160,7 +271,13 @@ class osrsPageHtmlBuilder {
         let tableCollapseScript = createTableCollapseScript(collapseTablesEnabled: collapseTablesEnabled)
         
         // Preload the main web font to improve rendering performance
-        let fontPreloadLink = "<link rel=\"preload\" href=\"runescape_plain.ttf\" as=\"font\" type=\"font/ttf\" crossorigin=\"anonymous\">"
+        let fontPreloadLink: String
+        if includeAssetLinks {
+            let customScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+            fontPreloadLink = "<link rel=\"preload\" href=\"\(customScheme)://localhost/fonts/runescape_plain.ttf\" as=\"font\" type=\"font/ttf\" crossorigin=\"anonymous\">"
+        } else {
+            fontPreloadLink = "<!-- Font preload handled by injected CSS -->"
+        }
         
         // Build final HTML document
         let finalHtml = """
@@ -187,6 +304,37 @@ class osrsPageHtmlBuilder {
         print("\(logTag): buildFullHtmlDocument() took \(Int(elapsedTime))ms")
         
         return finalHtml
+    }
+    
+    /// Get a proper bundle URL for an asset (CSS/JS) that can be loaded by WKWebView
+    private func getBundleAssetURL(for assetPath: String) -> URL? {
+        // The assets are stored in the bundle under "Assets/" directory
+        // e.g., "styles/themes.css" -> "Assets/styles/themes.css"
+        let bundleAssetPath = "Assets/\(assetPath)"
+        
+        // Try to get the bundle URL for the asset
+        if let path = Bundle.main.path(forResource: bundleAssetPath, ofType: nil) {
+            return URL(fileURLWithPath: path)
+        }
+        
+        // If that doesn't work, try without the Assets prefix (for backward compatibility)
+        if let path = Bundle.main.path(forResource: assetPath, ofType: nil) {
+            return URL(fileURLWithPath: path)
+        }
+        
+        print("\(logTag): Could not find asset in bundle: \(assetPath)")
+        return nil
+    }
+    
+    /// Get a proper bundle URL for a font file that can be loaded by WKWebView
+    private func getBundleFontURL(for fontName: String) -> URL? {
+        // Fonts are stored in the bundle under "Font/" directory
+        if let path = Bundle.main.path(forResource: fontName, ofType: nil, inDirectory: "Font") {
+            return URL(fileURLWithPath: path)
+        }
+        
+        print("\(logTag): Could not find font in bundle: \(fontName)")
+        return nil
     }
     
     private func extractMainTitle(_ title: String) -> String {

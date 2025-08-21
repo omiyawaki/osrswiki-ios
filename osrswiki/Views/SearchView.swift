@@ -18,7 +18,7 @@ struct SearchView: View {
     @FocusState private var isSearchFocused: Bool
     
     var body: some View {
-        NavigationStack(path: $appState.navigationPath) {
+        NavigationStack(path: $appState.searchNavigationPath) {
             VStack(spacing: 0) {
                 // Search input section
                 searchInputSection
@@ -52,6 +52,18 @@ struct SearchView: View {
                 // Clean up speech recognition when leaving the view
                 speechManager.cleanup()
             }
+            .navigationDestination(for: NavigationDestination.self) { destination in
+                switch destination {
+                case .search:
+                    DedicatedSearchView()
+                        .environmentObject(appState)
+                        .environment(\.osrsTheme, osrsTheme)
+                case .article(let articleDestination):
+                    ArticleView(pageTitle: articleDestination.title, pageUrl: articleDestination.url)
+                        .environmentObject(appState)
+                        .environment(\.osrsTheme, osrsTheme)
+                }
+            }
         }
     }
     
@@ -60,12 +72,12 @@ struct SearchView: View {
             // Main search bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsPlaceholderColor)
                 
                 TextField("Search OSRS Wiki", text: $searchText)
                     .focused($isSearchFocused)
                     .textFieldStyle(PlainTextFieldStyle())
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                     .onChange(of: searchText) { _, newValue in
                         viewModel.currentQuery = newValue
                     }
@@ -85,7 +97,7 @@ struct SearchView: View {
                 if !searchText.isEmpty {
                     Button(action: clearSearch) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.osrsOnSurfaceVariant)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                     }
                 }
                 
@@ -96,9 +108,11 @@ struct SearchView: View {
                     state: speechManager.currentState
                 )
             }
-            .padding()
-            .background(.osrsSurfaceVariant)
-            .cornerRadius(10)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(height: 36)
+            .background(.osrsSearchBoxBackgroundColor)
+            .cornerRadius(18)
             .padding(.horizontal)
             
             // Recent searches or suggestions
@@ -156,7 +170,7 @@ struct SearchView: View {
                 Text("Recent Searches")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                 
                 Spacer()
                 
@@ -177,8 +191,8 @@ struct SearchView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.osrsSurfaceVariant)
-                        .foregroundStyle(.osrsOnSurfaceVariant)
+                        .background(.osrsSearchBoxBackgroundColor)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                         .cornerRadius(16)
                         .font(.subheadline)
                     }
@@ -232,7 +246,7 @@ struct SearchView: View {
                         url: result.url.absoluteString,
                         thumbnailUrl: result.thumbnailUrl,
                         pageId: nil
-                    )) {
+                    ), searchQuery: searchText) {
                         viewModel.selectSearchResult(result)
                         viewModel.addToRecentSearches(searchText)
                     }

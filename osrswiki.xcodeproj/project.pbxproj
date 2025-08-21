@@ -119,6 +119,7 @@
 			buildPhases = (
 				CEAA8B092E39237A00BEFB35 /* Sources */,
 				CEAA8B0A2E39237A00BEFB35 /* Frameworks */,
+				CE4877F42E56634E0047884D /* Run Script */,
 				CEAA8B0B2E39237A00BEFB35 /* Resources */,
 			);
 			buildRules = (
@@ -252,6 +253,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CE4877F42E56634E0047884D /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 8;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/bash;
+			shellScript = "cd \"$SRCROOT\"\n./organize-shared-assets.sh\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		CEAA8B092E39237A00BEFB35 /* Sources */ = {

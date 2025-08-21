@@ -13,6 +13,7 @@
     gap: 4px;
     padding: 4px 0;
     margin: 0 auto; /* Center the container horizontally */
+    /* Removed min-width: max-content to allow better wrapping */
 }
 
 /* When inside an infobox, give the button container the infobox's background color. */
@@ -21,7 +22,7 @@
     border-radius: 4px; /* Add rounded corners to match the container */
     margin: 4px auto; /* Add some vertical margin for spacing */
     padding: 4px; /* Add some internal padding */
-    max-width: fit-content; /* Ensure it doesn't stretch unnecessarily */
+    /* Removed max-width: fit-content to respect parent's 300px limit */
 }
 
 /* Make the caption element that holds the button container transparent */
@@ -42,9 +43,18 @@
     color: var(--text-color);
     cursor: pointer;
     font-size: 0.75rem;
-    /* The line-height property was removed to allow flexbox to control alignment perfectly. */
-    padding: 0.25em 0.625em; /* Increased vertical padding slightly for aesthetics */
+    font-weight: normal;
+    line-height: 1.2;
+    /* Flexible dimensions - let content and container determine size */
+    min-width: 4rem; /* Minimum width to prevent squishing */
+    height: auto; /* Allow natural height */
     margin: 0.25em;
+    padding: 0.25em 0.625em;
+    box-sizing: border-box;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    flex: 0 1 auto; /* Don't grow, can shrink, auto basis */
     transition: background-color 100ms, color 100ms, border-color 100ms;
     user-select: none;
 }
@@ -57,6 +67,7 @@
     background: var(--text-color);
     border-color: var(--text-color);
     color: var(--body-light);
+    font-weight: normal;
 }
 
 /* --- Reconstructed functional styles --- */

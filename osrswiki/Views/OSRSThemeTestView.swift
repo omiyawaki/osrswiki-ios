@@ -40,7 +40,7 @@ struct osrsThemeTestView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Theme Selection")
                 .font(.osrsHeadline)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             HStack(spacing: 12) {
                 ForEach(osrsThemeSelection.allCases, id: \.self) { selection in
@@ -50,10 +50,10 @@ struct osrsThemeTestView: View {
                         }
                     }
                     .font(.osrsLabel)
-                    .foregroundStyle(themeManager.selectedTheme == selection ? .osrsOnPrimary : .osrsOnSurface)
+                    .foregroundStyle(themeManager.selectedTheme == selection ? .osrsOnPrimary : .osrsPrimaryTextColor)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(themeManager.selectedTheme == selection ? .osrsPrimary : .osrsSurfaceVariant)
+                    .background(themeManager.selectedTheme == selection ? .osrsPrimary : .osrsSearchBoxBackgroundColor)
                     .cornerRadius(8)
                     .osrsThemeTransition(transitionManager, animationIndex: selection.hashValue)
                 }
@@ -68,7 +68,7 @@ struct osrsThemeTestView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Color System Test")
                 .font(.osrsTitle)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
                 ColorSwatch(name: "Primary", color: .osrsPrimaryColor)
@@ -91,36 +91,36 @@ struct osrsThemeTestView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Typography Test")
                 .font(.osrsTitle)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text("Display Style")
                     .font(.osrsDisplay)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text("Headline Style")
                     .font(.osrsHeadline)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text("Title Style")
                     .font(.osrsTitle)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text("Body text demonstrates how longer content appears with OSRS typography.")
                     .font(.osrsBody)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text("Label Style")
                     .font(.osrsLabel)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                 
                 Text("Caption Style")
                     .font(.osrsCaption)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                 
                 Text("Monospace Code Style")
                     .font(.osrsMono)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
             }
         }
         .padding()
@@ -132,7 +132,7 @@ struct osrsThemeTestView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Component Test")
                 .font(.osrsTitle)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             VStack(spacing: 16) {
                 // Button tests
@@ -144,9 +144,9 @@ struct osrsThemeTestView: View {
                         .cornerRadius(8)
                     
                     Button("Secondary Button") {}
-                        .foregroundStyle(.osrsOnSurface)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                         .padding()
-                        .background(.osrsSurfaceVariant)
+                        .background(.osrsSearchBoxBackgroundColor)
                         .cornerRadius(8)
                     
                     Button("Error Button") {}
@@ -159,9 +159,9 @@ struct osrsThemeTestView: View {
                 // Text field test
                 TextField("Search OSRS Wiki", text: .constant(""))
                     .padding()
-                    .background(.osrsSurfaceVariant)
+                    .background(.osrsSearchBoxBackgroundColor)
                     .cornerRadius(8)
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 // List item test
                 HStack {
@@ -171,31 +171,31 @@ struct osrsThemeTestView: View {
                     VStack(alignment: .leading) {
                         Text("List Item Title")
                             .font(.osrsLabel)
-                            .foregroundStyle(.osrsOnSurface)
+                            .foregroundStyle(.osrsPrimaryTextColor)
                         
                         Text("Subtitle with secondary information")
                             .font(.osrsCaption)
-                            .foregroundStyle(.osrsOnSurfaceVariant)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                     }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.right")
-                        .foregroundStyle(.osrsOnSurfaceVariant)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                 }
                 .padding()
-                .background(.osrsSurfaceVariant)
+                .background(.osrsSearchBoxBackgroundColor)
                 .cornerRadius(8)
                 
                 // Card test
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Card Title")
                         .font(.osrsTitle)
-                        .foregroundStyle(.osrsOnSurface)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                     
                     Text("Card content demonstrates how OSRS theming appears in card layouts with proper contrast and readability.")
                         .font(.osrsBody)
-                        .foregroundStyle(.osrsOnSurface)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                     
                     HStack {
                         Button("Action") {}
@@ -227,7 +227,7 @@ struct osrsThemeTestView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Transition Test")
                 .font(.osrsTitle)
-                .foregroundStyle(.osrsOnSurface)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             VStack(spacing: 12) {
                 Button("Test Theme Transition") {
@@ -244,7 +244,7 @@ struct osrsThemeTestView: View {
                 
                 Text("Transition Status: \(transitionManager.isTransitioning ? "In Progress" : "Idle")")
                     .font(.osrsCaption)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                 
                 ProgressView(value: transitionManager.transitionProgress)
                     .tint(.osrsPrimaryColor)
@@ -272,7 +272,7 @@ struct ColorSwatch: View {
             
             Text(name)
                 .font(.osrsCaption)
-                .foregroundStyle(.osrsOnSurfaceVariant)
+                .foregroundStyle(.osrsSecondaryTextColor)
                 .multilineTextAlignment(.center)
         }
     }

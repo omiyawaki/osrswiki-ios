@@ -16,43 +16,64 @@ struct DedicatedSearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
-    @Binding var isPresented: Bool
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Search input section (matches Android SearchActivity)
-                searchInputSection
-                
-                // Content section
-                contentSection
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .background(.osrsBackground)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                    .foregroundStyle(.osrsPrimary)
+        VStack(spacing: 0) {
+            // Search input section (matches Android SearchActivity)
+            searchInputSection
+            
+            // Content section
+            contentSection
+        }
+        .navigationTitle("Search")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(.osrsBackground)
+        .tint(Color(osrsTheme.primary))
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Back") {
+                    appState.navigateBack()
                 }
-            }
-            .onAppear {
-                // Set up navigation callback
-                viewModel.navigateToArticle = { title, url in
-                    // Dismiss search modal first
-                    isPresented = false
-                    // Then navigate to article
-                    appState.navigateToArticle(title: title, url: url)
-                }
-                
-                // Auto-focus search field when modal appears (matches Android SearchActivity)
-                DispatchQueue.main.async {
-                    isSearchFocused = true
-                }
+                .foregroundStyle(Color(osrsTheme.primary))
             }
         }
+        .onAppear {
+            // Set up navigation callback - use NavigationStack navigation
+            viewModel.navigateToArticle = { title, url in
+                appState.navigateToArticle(title: title, url: url)
+            }
+            
+            // Configure navigation bar appearance to theme the back button chevron
+            configureNavigationBarAppearance()
+            
+            // Auto-focus search field when view appears (matches Android SearchActivity)
+            DispatchQueue.main.async {
+                isSearchFocused = true
+            }
+        }
+    }
+    
+    private func configureNavigationBarAppearance() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(osrsTheme.surface)
+        appearance.titleTextAttributes = [.foregroundColor: UIColor(osrsTheme.primaryTextColor)]
+        
+        // Configure back button appearance - this is the key for the chevron color
+        appearance.backButtonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor(osrsTheme.primary)]
+        
+        // Set the back indicator image with the theme color
+        if let backImage = UIImage(systemName: "chevron.backward")?
+            .withTintColor(UIColor(osrsTheme.primary), renderingMode: .alwaysOriginal) {
+            appearance.setBackIndicatorImage(backImage, transitionMaskImage: backImage)
+        }
+        
+        // Apply the appearance
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+        
+        print("🎨 [NAV BAR] Configured navigation bar appearance with back button color: \(UIColor(osrsTheme.primary))")
     }
     
     private var searchInputSection: some View {
@@ -60,12 +81,15 @@ struct DedicatedSearchView: View {
             // Main search bar (matches Android SearchActivity style)
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsPlaceholderColor)
                 
                 TextField("Search OSRS Wiki", text: $searchText)
                     .focused($isSearchFocused)
                     .textFieldStyle(PlainTextFieldStyle())
-                    .foregroundStyle(.osrsOnSurface)
+                    .foregroundStyle(.osrsPrimaryTextColor)
+                    .tint(Color(osrsTheme.primary))
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.never)
                     .onChange(of: searchText) { _, newValue in
                         viewModel.currentQuery = newValue
                     }
@@ -85,7 +109,7 @@ struct DedicatedSearchView: View {
                 if !searchText.isEmpty {
                     Button(action: clearSearch) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.osrsOnSurfaceVariant)
+                            .foregroundStyle(.osrsPlaceholderColor)
                     }
                 }
                 
@@ -94,12 +118,14 @@ struct DedicatedSearchView: View {
                     appState.showError("Voice search not yet implemented")
                 }) {
                     Image(systemName: "mic")
-                        .foregroundStyle(.osrsOnSurfaceVariant)
+                        .foregroundStyle(.osrsPlaceholderColor)
                 }
             }
-            .padding()
-            .background(.osrsSurfaceVariant)
-            .cornerRadius(10)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(height: 36)
+            .background(.osrsSearchBoxBackgroundColor)
+            .cornerRadius(18)
             .padding(.horizontal)
             
             // Recent searches or suggestions
@@ -148,7 +174,7 @@ struct DedicatedSearchView: View {
                 Text("Recent Searches")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundStyle(.osrsOnSurfaceVariant)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                 
                 Spacer()
                 
@@ -169,8 +195,8 @@ struct DedicatedSearchView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.osrsSurfaceVariant)
-                        .foregroundStyle(.osrsOnSurfaceVariant)
+                        .background(.osrsSearchBoxBackgroundColor)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                         .cornerRadius(16)
                         .font(.subheadline)
                     }
@@ -199,8 +225,7 @@ struct DedicatedSearchView: View {
                         timestamp: historyItem.visitedDate,
                         source: 1
                     )) {
-                        // Dismiss modal and navigate to page
-                        isPresented = false
+                        // Use direct navigation via AppState
                         appState.navigateToArticle(title: historyItem.pageTitle, url: historyItem.pageUrl)
                     }
                 }
@@ -215,21 +240,7 @@ struct DedicatedSearchView: View {
     }
     
     private var searchResultsSection: some View {
-        VStack(spacing: 0) {
-            // Results summary
-            if viewModel.totalResultCount > 0 {
-                HStack {
-                    Text("\(viewModel.totalResultCount) results")
-                        .font(.caption)
-                        .foregroundStyle(.osrsOnSurfaceVariant)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.osrsSurfaceVariant)
-            }
-            
-            List {
+        List {
                 ForEach(viewModel.searchResults) { result in
                     SearchResultRowView(result: ThemedSearchResult(
                         title: result.displayTitle,
@@ -238,11 +249,10 @@ struct DedicatedSearchView: View {
                         url: result.url.absoluteString,
                         thumbnailUrl: result.thumbnailUrl,
                         pageId: nil
-                    )) {
+                    ), searchQuery: searchText) {
                         viewModel.selectSearchResult(result)
                         viewModel.addToRecentSearches(searchText)
-                        // Dismiss modal after selection
-                        isPresented = false
+                        // Don't dismiss modal - let article present over search results
                     }
                 }
                 
@@ -276,7 +286,6 @@ struct DedicatedSearchView: View {
             .listStyle(PlainListStyle())
             .scrollContentBackground(.hidden)
             .background(.osrsBackground)
-        }
     }
     
     private func performSearch() {
@@ -298,7 +307,7 @@ struct DedicatedSearchView: View {
 }
 
 #Preview {
-    DedicatedSearchView(isPresented: .constant(true))
+    DedicatedSearchView()
         .environmentObject(AppState())
         .environmentObject(osrsThemeManager.preview)
         .environment(\.osrsTheme, osrsLightTheme())

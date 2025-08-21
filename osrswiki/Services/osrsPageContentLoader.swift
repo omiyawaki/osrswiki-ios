@@ -186,7 +186,9 @@ class osrsPageContentLoader {
         )
         
         // Process any MediaWiki-specific content
+        print("🔍 osrsPageContentLoader: HTML before processMediaWikiContent contains 'advanced-data': \(processedHtml.contains("advanced-data"))")
         processedHtml = processMediaWikiContent(processedHtml)
+        print("🔍 osrsPageContentLoader: HTML after processMediaWikiContent contains 'advanced-data': \(processedHtml.contains("advanced-data"))")
         
         print("🔧 osrsPageContentLoader: Processed HTML content - found \(backgroundUrls.count) background URLs")
         
@@ -195,6 +197,39 @@ class osrsPageContentLoader {
     
     private func processMediaWikiContent(_ html: String) -> String {
         var processedHtml = html
+        
+        // Remove unwanted infobox sections that should be hidden by default
+        // (matching Android's preprocessHtml behavior)
+        let selectorsToRemove = [
+            "advanced-data",
+            "leagues-global-flag",
+            "infobox-padding"
+        ]
+        
+        print("🔍 osrsPageContentLoader: Starting removal of unwanted infobox sections")
+        
+        for selector in selectorsToRemove {
+            // Pattern to match <tr> elements with the class anywhere in the class attribute
+            // This handles cases like class="advanced-data" or class="foo advanced-data bar"
+            let pattern = "<tr[^>]*?class=[\"'][^\"']*?\(selector)[^\"']*?[\"'][^>]*?>.*?</tr>"
+            
+            do {
+                let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+                let matches = regex.matches(in: processedHtml, range: NSRange(location: 0, length: processedHtml.utf16.count))
+                print("🔍 osrsPageContentLoader: Found \(matches.count) matches for selector '\(selector)'")
+                
+                // Remove matches in reverse order to maintain correct indices
+                for match in matches.reversed() {
+                    if let range = Range(match.range, in: processedHtml) {
+                        let matchedText = String(processedHtml[range])
+                        print("🔍 osrsPageContentLoader: Removing element with class '\(selector)': \(matchedText.prefix(100))...")
+                        processedHtml.removeSubrange(range)
+                    }
+                }
+            } catch {
+                print("❌ osrsPageContentLoader: Failed to create regex for selector '\(selector)': \(error)")
+            }
+        }
         
         // Convert MediaWiki internal links to app-friendly format
         // Example: [[Dragon]] -> <a href="/w/Dragon">Dragon</a>

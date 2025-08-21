@@ -80,9 +80,10 @@ class NewsRepository {
                 let titlePattern = #"<div[^>]*class="[^"]*tile-bottom[^"]*"[^>]*>.*?<a[^>]*>.*?<h2[^>]*>(.*?)</h2>"#
                 let title = extractFirst(pattern: titlePattern, from: tileContent) ?? "Recent Update"
                 
-                // Extract snippet from last p tag within tile-bottom a tag
-                let snippetPattern = #"<div[^>]*class="[^"]*tile-bottom[^"]*"[^>]*>.*?<a[^>]*>.*?<p[^>]*>(.*?)</p>(?:(?!</p>).)*?</a>"#
-                let snippet = extractLast(pattern: snippetPattern, from: tileContent) ?? ""
+                // Extract snippet from last p tag within tile-bottom a tag (matching Android approach)
+                let pTagPattern = #"<p[^>]*>(.*?)</p>"#
+                let allPTagsInTile = extractAll(pattern: pTagPattern, from: tileContent)
+                let snippet = allPTagsInTile.last.map { cleanHTML($0) } ?? ""
                 
                 // Extract href from tile-bottom a tag
                 let hrefPattern = #"<div[^>]*class="[^"]*tile-bottom[^"]*"[^>]*>.*?<a[^>]*href="([^"]+)""#
@@ -95,7 +96,7 @@ class NewsRepository {
                 let imageUrl = imgSrc.starts(with: "/") ? "\(baseURL)\(imgSrc)" : imgSrc
                 
                 let cleanTitle = cleanHTML(title)
-                let cleanSnippet = cleanHTML(snippet)
+                let cleanSnippet = snippet // Already cleaned above
                 
                 print("   Extracted title: '\(cleanTitle)'")
                 print("   Extracted snippet: '\(cleanSnippet)'")
@@ -312,6 +313,12 @@ class NewsRepository {
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&quot;", with: "\"")
             .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&#8226;", with: "•")
+            .replacingOccurrences(of: "&bull;", with: "•")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&mdash;", with: "—")
+            .replacingOccurrences(of: "&ndash;", with: "–")
+            .replacingOccurrences(of: "&hellip;", with: "…")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

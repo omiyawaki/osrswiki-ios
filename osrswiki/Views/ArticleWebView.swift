@@ -7,6 +7,335 @@
 
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
+
+// MARK: - iOS Asset Handler (matches Android's appassets.androidplatform.net)
+class IOSAssetHandler: NSObject, WKURLSchemeHandler {
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        print("🚨 IOSAssetHandler: CALLED! URL: \(urlSchemeTask.request.url?.absoluteString ?? "nil")")
+        
+        guard let url = urlSchemeTask.request.url else {
+            print("❌ IOSAssetHandler: No URL in request")
+            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
+            return
+        }
+        
+        // Get the registered scheme from UserDefaults
+        let expectedScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+        
+        guard url.scheme == expectedScheme else {
+            print("❌ IOSAssetHandler: Invalid scheme: '\(url.scheme ?? "nil")' (expected: '\(expectedScheme)')")
+            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
+            return
+        }
+        
+        // Extract asset path (e.g., app-assets://localhost/styles/themes.css -> styles/themes.css)
+        let assetPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        print("📁 IOSAssetHandler: Extracted asset path: '\(assetPath)'")
+        
+        // Check if this is an image request (external resource that needs proxying)
+        if assetPath.hasPrefix("images/") || assetPath.contains(".png") || assetPath.contains(".jpg") || assetPath.contains(".jpeg") || assetPath.contains(".gif") || assetPath.contains(".svg") {
+            print("🖼️ IOSAssetHandler: Image request detected, proxying to wiki: \(assetPath)")
+            handleImageProxy(urlSchemeTask: urlSchemeTask, assetPath: assetPath)
+            return
+        }
+        
+        // Handle PHP/MediaWiki loader requests (external resources)
+        if assetPath.hasSuffix(".php") || assetPath.contains("load.php") {
+            print("🔧 IOSAssetHandler: MediaWiki loader request, proxying to wiki: \(assetPath)")
+            handleMediaWikiProxy(urlSchemeTask: urlSchemeTask, assetPath: assetPath)
+            return
+        }
+        
+        // Debug: Show bundle structure for asset resolution debugging
+        let bundleMainPath = Bundle.main.bundlePath
+        print("📦 Bundle path: \(bundleMainPath)")
+        if let contents = try? FileManager.default.contentsOfDirectory(atPath: bundleMainPath) {
+            print("📦 Bundle root contents: \(contents.prefix(10))")
+        }
+        
+        // Check if Assets directory exists in bundle
+        let assetsDir = bundleMainPath + "/Assets"
+        if FileManager.default.fileExists(atPath: assetsDir) {
+            print("📦 Assets directory exists: \(assetsDir)")
+            if let assetContents = try? FileManager.default.contentsOfDirectory(atPath: assetsDir) {
+                print("📦 Assets/ contents: \(assetContents.prefix(10))")
+                
+                // Check web/ subdirectory specifically
+                let webDir = assetsDir + "/web"
+                if FileManager.default.fileExists(atPath: webDir) {
+                    if let webContents = try? FileManager.default.contentsOfDirectory(atPath: webDir) {
+                        print("📦 Assets/web/ contents: \(webContents.prefix(10))")
+                    }
+                } else {
+                    print("📦 Assets/web/ does NOT exist in bundle")
+                }
+            }
+        } else {
+            print("📦 Assets directory does NOT exist in bundle")
+        }
+        
+        // Try multiple path patterns to find the asset
+        var bundlePath: String?
+        var attemptedPaths: [String] = []
+        
+        print("🟡 [ASSET_HANDLER] Request for: \(assetPath)")
+        
+        // Pattern 1: Try direct path in Assets/ directory structure (our organized shared assets)
+        let assetsPath = "Assets/\(assetPath)"
+        if let path = Bundle.main.path(forResource: assetsPath, ofType: nil) {
+            bundlePath = path
+            print("🟢 [ASSET_HANDLER] Found via Assets/ structure: \(assetsPath)")
+        } else {
+            attemptedPaths.append("Bundle.main.path(forResource: '\(assetsPath)', ofType: nil)")
+            print("🔍 [ASSET_HANDLER] Pattern 1 failed for: \(assetsPath)")
+            
+            // Additional debugging: Try different approaches for JS files specifically
+            if assetPath == "web/map_bridge.js" {
+                print("🔍 [DEBUG] Special debugging for map_bridge.js:")
+                
+                // Try various permutations
+                let variations = [
+                    "Assets/web/map_bridge.js",
+                    "web/map_bridge",
+                    "Assets/web/map_bridge", 
+                    "map_bridge.js",
+                    "map_bridge"
+                ]
+                
+                for variation in variations {
+                    if let path = Bundle.main.path(forResource: variation, ofType: nil) {
+                        print("🔍 [DEBUG] Found \(variation) -> \(path)")
+                    } else if let path = Bundle.main.path(forResource: variation, ofType: "js") {
+                        print("🔍 [DEBUG] Found \(variation).js -> \(path)")
+                    } else {
+                        print("🔍 [DEBUG] NOT found: \(variation) (neither .js nor no extension)")
+                    }
+                }
+            }
+        }
+        
+        // Pattern 2: Try with extension separation in Assets/ directory
+        if bundlePath == nil {
+            let filename = assetPath.components(separatedBy: "/").last ?? assetPath
+            let pathComponents = filename.split(separator: ".")
+            if pathComponents.count >= 2 {
+                let nameWithoutExtension = String(pathComponents.dropLast().joined(separator: "."))
+                let fileExtension = String(pathComponents.last!)
+                let assetsFilePath = "Assets/\(assetPath.replacingOccurrences(of: filename, with: ""))\(nameWithoutExtension)"
+                
+                if let path = Bundle.main.path(forResource: assetsFilePath, ofType: fileExtension) {
+                    bundlePath = path
+                    print("🟢 [ASSET_HANDLER] Found via Assets/ + extension: \(assetsFilePath).\(fileExtension)")
+                } else {
+                    attemptedPaths.append("Bundle.main.path(forResource: '\(assetsFilePath)', ofType: '\(fileExtension)')")
+                    print("🔍 [ASSET_HANDLER] Pattern 2 failed for: \(assetsFilePath).\(fileExtension)")
+                }
+            }
+        }
+        
+        // Pattern 3: Special handling for fonts in Font/ subdirectory (legacy fonts)
+        if bundlePath == nil && assetPath.hasPrefix("fonts/") {
+            let fontFileName = assetPath.replacingOccurrences(of: "fonts/", with: "")
+            if let path = Bundle.main.path(forResource: fontFileName, ofType: nil, inDirectory: "Font") {
+                bundlePath = path
+                print("✅ IOSAssetHandler: Found font in Font/ subdirectory: \(fontFileName)")
+            } else {
+                attemptedPaths.append("Bundle.main.path(forResource: '\(fontFileName)', ofType: nil, inDirectory: 'Font')")
+            }
+        }
+        
+        // Pattern 4: Fallback to flat bundle structure (iOS flattens some assets to bundle root)
+        if bundlePath == nil {
+            let flatFileName = assetPath.components(separatedBy: "/").last ?? assetPath
+            if let path = Bundle.main.path(forResource: flatFileName, ofType: nil) {
+                bundlePath = path
+                print("🟢 [ASSET_HANDLER] Found via flat bundle: \(flatFileName)")
+            } else {
+                attemptedPaths.append("Bundle.main.path(forResource: '\(flatFileName)', ofType: nil)")
+            }
+        }
+        
+        // Pattern 5: Try parsing file extension from flat filename
+        if bundlePath == nil {
+            let flatFileName = assetPath.components(separatedBy: "/").last ?? assetPath
+            let pathComponents = flatFileName.split(separator: ".")
+            if pathComponents.count >= 2 {
+                let nameWithoutExtension = String(pathComponents.dropLast().joined(separator: "."))
+                let fileExtension = String(pathComponents.last!)
+                
+                if let path = Bundle.main.path(forResource: nameWithoutExtension, ofType: fileExtension) {
+                    bundlePath = path
+                    print("✅ IOSAssetHandler: Found via flat + extension parsing: \(nameWithoutExtension).\(fileExtension)")
+                } else {
+                    attemptedPaths.append("Bundle.main.path(forResource: '\(nameWithoutExtension)', ofType: '\(fileExtension)')")
+                }
+            }
+        }
+        
+        guard let finalBundlePath = bundlePath,
+              let data = FileManager.default.contents(atPath: finalBundlePath) else {
+            print("🔴 [ASSET_HANDLER] Asset not found: \(assetPath)")
+            print("🔴 [ASSET_HANDLER] Attempted paths: \(attemptedPaths)")
+            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, 
+                                                  userInfo: [NSLocalizedDescriptionKey: "Asset not found: \(assetPath)"]))
+            return
+        }
+        
+        print("🟢 [ASSET_HANDLER] Found asset at: \(finalBundlePath)")
+        
+        // Determine MIME type
+        let mimeType: String
+        if assetPath.hasSuffix(".css") {
+            mimeType = "text/css"
+        } else if assetPath.hasSuffix(".js") {
+            mimeType = "application/javascript"
+        } else if assetPath.hasSuffix(".ttf") {
+            mimeType = "font/ttf"
+        } else {
+            mimeType = "application/octet-stream"
+        }
+        
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [
+            "Content-Type": mimeType,
+            "Content-Length": "\(data.count)"
+        ])
+        
+        urlSchemeTask.didReceive(response!)
+        urlSchemeTask.didReceive(data)
+        urlSchemeTask.didFinish()
+        
+        print("📱 iOS Asset Handler: Served \(assetPath) (\(data.count) bytes)")
+    }
+    
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        // Handle cancellation if needed
+    }
+    
+    // MARK: - Image Proxying Methods
+    
+    private func handleImageProxy(urlSchemeTask: WKURLSchemeTask, assetPath: String) {
+        // Convert custom scheme image request to original wiki URL
+        let originalImageURL = "https://oldschool.runescape.wiki/\(assetPath)"
+        
+        guard let url = URL(string: originalImageURL) else {
+            print("❌ IOSAssetHandler: Invalid image URL: \(originalImageURL)")
+            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
+            return
+        }
+        
+        print("🌐 IOSAssetHandler: Proxying image from: \(originalImageURL)")
+        
+        // Fetch the image from the original wiki
+        let task = URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error = error {
+                print("❌ IOSAssetHandler: Image fetch failed: \(error.localizedDescription)")
+                urlSchemeTask.didFailWithError(error)
+                return
+            }
+            
+            guard let data = data, let httpResponse = response as? HTTPURLResponse else {
+                print("❌ IOSAssetHandler: No image data received")
+                urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
+                return
+            }
+            
+            print("✅ IOSAssetHandler: Image fetched successfully (\(data.count) bytes)")
+            
+            // Determine MIME type based on file extension
+            let mimeType: String
+            if assetPath.contains(".png") {
+                mimeType = "image/png"
+            } else if assetPath.contains(".jpg") || assetPath.contains(".jpeg") {
+                mimeType = "image/jpeg"  
+            } else if assetPath.contains(".gif") {
+                mimeType = "image/gif"
+            } else if assetPath.contains(".svg") {
+                mimeType = "image/svg+xml"
+            } else {
+                mimeType = httpResponse.mimeType ?? "image/png"
+            }
+            
+            // Create response with proper headers
+            let customResponse = HTTPURLResponse(
+                url: urlSchemeTask.request.url!,
+                statusCode: httpResponse.statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: [
+                    "Content-Type": mimeType,
+                    "Content-Length": "\(data.count)",
+                    "Cache-Control": "max-age=3600"
+                ]
+            )
+            
+            urlSchemeTask.didReceive(customResponse!)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+            
+            print("📱 iOS Image Proxy: Served \(assetPath) (\(data.count) bytes)")
+        }
+        
+        task.resume()
+    }
+    
+    private func handleMediaWikiProxy(urlSchemeTask: WKURLSchemeTask, assetPath: String) {
+        // Convert custom scheme MediaWiki request to original wiki URL
+        let originalURL: String
+        if let queryString = urlSchemeTask.request.url?.query {
+            originalURL = "https://oldschool.runescape.wiki/\(assetPath)?\(queryString)"
+        } else {
+            originalURL = "https://oldschool.runescape.wiki/\(assetPath)"
+        }
+        
+        guard let url = URL(string: originalURL) else {
+            print("❌ IOSAssetHandler: Invalid MediaWiki URL: \(originalURL)")
+            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
+            return
+        }
+        
+        print("🌐 IOSAssetHandler: Proxying MediaWiki resource from: \(originalURL)")
+        
+        // Fetch the resource from the original wiki
+        let task = URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error = error {
+                print("❌ IOSAssetHandler: MediaWiki fetch failed: \(error.localizedDescription)")
+                urlSchemeTask.didFailWithError(error)
+                return
+            }
+            
+            guard let data = data, let httpResponse = response as? HTTPURLResponse else {
+                print("❌ IOSAssetHandler: No MediaWiki data received")
+                urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
+                return
+            }
+            
+            print("✅ IOSAssetHandler: MediaWiki resource fetched successfully (\(data.count) bytes)")
+            
+            // Use original response MIME type or default to JavaScript
+            let mimeType = httpResponse.mimeType ?? "application/javascript"
+            
+            // Create response with proper headers
+            let customResponse = HTTPURLResponse(
+                url: urlSchemeTask.request.url!,
+                statusCode: httpResponse.statusCode,
+                httpVersion: "HTTP/1.1", 
+                headerFields: [
+                    "Content-Type": mimeType,
+                    "Content-Length": "\(data.count)",
+                    "Cache-Control": "max-age=3600"
+                ]
+            )
+            
+            urlSchemeTask.didReceive(customResponse!)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+            
+            print("📱 iOS MediaWiki Proxy: Served \(assetPath) (\(data.count) bytes)")
+        }
+        
+        task.resume()
+    }
+}
 
 struct ArticleWebView: UIViewRepresentable {
     @ObservedObject var viewModel: ArticleViewModel
@@ -43,14 +372,35 @@ struct ArticleWebView: UIViewRepresentable {
         )
         userContentController.addUserScript(mobileOptimizationScript)
         
+        // Note: MapLibre bridge loaded via external JS file (Option B) for cross-platform compatibility
+        
+        // Add Safari vs WKWebView debugging script
+        let debuggingScript = WKUserScript(
+            source: createSafariComparisonScript(),
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: false
+        )
+        userContentController.addUserScript(debuggingScript)
+        
         // Register message handlers
         userContentController.add(context.coordinator, name: "clipboardBridge")
         userContentController.add(context.coordinator, name: "renderTimeline")
         userContentController.add(context.coordinator, name: "linkHandler")
+        userContentController.add(context.coordinator, name: "mapBridge")
+        userContentController.add(context.coordinator, name: "safariDebugger")
         
         configuration.userContentController = userContentController
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
+        
+        // Option B: Register WKURLSchemeHandler for custom asset loading
+        let assetHandler = IOSAssetHandler()
+        let customScheme = "app-assets"
+        
+        // Register the custom scheme handler
+        configuration.setURLSchemeHandler(assetHandler, forURLScheme: customScheme)
+        UserDefaults.standard.set(customScheme, forKey: "WKURLSchemeHandler_Scheme")
+        print("✅ Option B: Successfully registered \(customScheme):// URL scheme handler")
         
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = viewModel
@@ -59,11 +409,24 @@ struct ArticleWebView: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = UIColor.clear
         
+        // Enable debugging for Safari vs WKWebView comparison
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = true
+        }
+        
         // Set up gesture recognizers for iOS-specific interactions
         setupGestureRecognizers(webView: webView)
         
+        // Enable find-in-page interaction (iOS 16+)
+        if #available(iOS 16.0, *) {
+            webView.isFindInteractionEnabled = true
+        }
+        
         // Connect webView to viewModel
         viewModel.setWebView(webView)
+        
+        // Initialize map handler with the webView
+        context.coordinator.setupMapHandler(webView: webView)
         
         return webView
     }
@@ -206,11 +569,144 @@ struct ArticleWebView: UIViewRepresentable {
         """
     }
     
+    // Note: MapLibre bridge now loaded exclusively via external JS file (Option B)
+    // This eliminates redundancy and provides cleaner cross-platform compatibility
+    
+    private func createSafariComparisonScript() -> String {
+        return """
+        (function() {
+            // Safari vs WKWebView debugging script
+            window.SafariDebugger = {
+                analyzeEnvironment: function() {
+                    const results = {
+                        userAgent: navigator.userAgent,
+                        viewport: {
+                            innerWidth: window.innerWidth,
+                            innerHeight: window.innerHeight,
+                            devicePixelRatio: window.devicePixelRatio,
+                            screen: { 
+                                width: screen.width, 
+                                height: screen.height,
+                                availWidth: screen.availWidth,
+                                availHeight: screen.availHeight
+                            }
+                        },
+                        mediaQueries: {
+                            mobile: window.matchMedia('(max-width: 768px)').matches,
+                            tablet: window.matchMedia('(min-width: 769px) and (max-width: 1024px)').matches,
+                            desktop: window.matchMedia('(min-width: 1025px)').matches,
+                            retina: window.matchMedia('(-webkit-min-device-pixel-ratio: 2)').matches
+                        },
+                        fonts: {
+                            defaultFamily: getComputedStyle(document.body).fontFamily,
+                            defaultSize: getComputedStyle(document.body).fontSize
+                        },
+                        tables: this.analyzeTableRendering()
+                    };
+                    
+                    window.webkit.messageHandlers.safariDebugger.postMessage({
+                        type: 'environmentAnalysis',
+                        data: results
+                    });
+                },
+                
+                analyzeTableRendering: function() {
+                    const tables = document.querySelectorAll('table.wikitable');
+                    const tableAnalysis = [];
+                    
+                    tables.forEach((table, index) => {
+                        if (index < 3) { // Analyze first 3 tables
+                            const tableStyles = window.getComputedStyle(table);
+                            const cells = table.querySelectorAll('td');
+                            const cellAnalysis = [];
+                            
+                            cells.forEach((cell, cellIndex) => {
+                                if (cellIndex < 10) { // First 10 cells
+                                    const cellStyles = window.getComputedStyle(cell);
+                                    const rect = cell.getBoundingClientRect();
+                                    const text = cell.textContent;
+                                    
+                                    // Test if text would wrap
+                                    const testSpan = document.createElement('span');
+                                    testSpan.style.cssText = 'position: absolute; visibility: hidden; white-space: nowrap; font-family: inherit; font-size: inherit;';
+                                    testSpan.textContent = text;
+                                    document.body.appendChild(testSpan);
+                                    const singleLineWidth = testSpan.getBoundingClientRect().width;
+                                    document.body.removeChild(testSpan);
+                                    
+                                    cellAnalysis.push({
+                                        cellIndex: cellIndex,
+                                        text: text.substring(0, 50),
+                                        textLength: text.length,
+                                        cellWidth: rect.width,
+                                        cellHeight: rect.height,
+                                        singleLineWidth: singleLineWidth,
+                                        isWrapping: singleLineWidth > rect.width && text.length > 10,
+                                        styles: {
+                                            width: cellStyles.width,
+                                            maxWidth: cellStyles.maxWidth,
+                                            minWidth: cellStyles.minWidth,
+                                            wordWrap: cellStyles.wordWrap,
+                                            overflowWrap: cellStyles.overflowWrap,
+                                            wordBreak: cellStyles.wordBreak,
+                                            whiteSpace: cellStyles.whiteSpace,
+                                            textSizeAdjust: cellStyles.webkitTextSizeAdjust || cellStyles.textSizeAdjust,
+                                            display: cellStyles.display,
+                                            fontSize: cellStyles.fontSize,
+                                            fontFamily: cellStyles.fontFamily
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            tableAnalysis.push({
+                                tableIndex: index,
+                                cellsAnalyzed: cellAnalysis.length,
+                                wrappingCells: cellAnalysis.filter(c => c.isWrapping).length,
+                                tableStyles: {
+                                    width: tableStyles.width,
+                                    tableLayout: tableStyles.tableLayout,
+                                    borderCollapse: tableStyles.borderCollapse,
+                                    wordWrap: tableStyles.wordWrap,
+                                    overflowWrap: tableStyles.overflowWrap
+                                },
+                                cells: cellAnalysis
+                            });
+                        }
+                    });
+                    
+                    return {
+                        tablesFound: tables.length,
+                        tablesAnalyzed: tableAnalysis.length,
+                        totalWrappingCells: tableAnalysis.reduce((sum, table) => sum + table.wrappingCells, 0),
+                        analysis: tableAnalysis
+                    };
+                }
+            };
+            
+            // Run analysis after page load
+            if (document.readyState === 'complete') {
+                setTimeout(() => window.SafariDebugger.analyzeEnvironment(), 1000);
+            } else {
+                window.addEventListener('load', () => {
+                    setTimeout(() => window.SafariDebugger.analyzeEnvironment(), 1000);
+                });
+            }
+        })();
+        """
+    }
+    
     class Coordinator: NSObject, WKScriptMessageHandler {
         let parent: ArticleWebView
+        private var mapHandler: osrsNativeMapHandler?
         
         init(_ parent: ArticleWebView) {
             self.parent = parent
+        }
+        
+        func setupMapHandler(webView: WKWebView) {
+            mapHandler = osrsNativeMapHandler(webView: webView)
+            print("✅ iOS ArticleWebView: Map handler initialized")
         }
         
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -223,6 +719,10 @@ struct ArticleWebView: UIViewRepresentable {
                 handleRenderTimelineMessage(body)
             case "linkHandler":
                 handleLinkMessage(body)
+            case "mapBridge":
+                handleMapBridgeMessage(body)
+            case "safariDebugger":
+                handleSafariDebuggerMessage(body)
             default:
                 break
             }
@@ -273,6 +773,106 @@ struct ArticleWebView: UIViewRepresentable {
             DispatchQueue.main.async {
                 // Navigate to new article within the app
                 self.parent.appState.navigateToArticle(title: title, url: url)
+            }
+        }
+        
+        private func handleMapBridgeMessage(_ body: [String: Any]) {
+            guard let action = body["action"] as? String else { 
+                print("🔴 MapBridge: Received message with no action: \(body)")
+                return 
+            }
+            
+            print("🟢 MapBridge: Received action '\(action)' with data: \(body)")
+            
+            switch action {
+            case "onMapPlaceholderMeasured":
+                if let id = body["id"] as? String,
+                   let rectJson = body["rectJson"] as? String,
+                   let mapDataJson = body["mapDataJson"] as? String {
+                    mapHandler?.onMapPlaceholderMeasured(id: id, rectJson: rectJson, mapDataJson: mapDataJson)
+                }
+                
+            case "onCollapsibleToggled":
+                if let mapId = body["mapId"] as? String,
+                   let isOpening = body["isOpening"] as? Bool {
+                    mapHandler?.onCollapsibleToggled(mapId: mapId, isOpening: isOpening)
+                }
+                
+            case "setHorizontalScroll":
+                if let inProgress = body["inProgress"] as? Bool {
+                    mapHandler?.setHorizontalScroll(inProgress: inProgress)
+                }
+                
+            case "log":
+                if let message = body["message"] as? String {
+                    mapHandler?.log(message: message)
+                }
+                
+            default:
+                print("❌ iOS ArticleWebView: Unknown map bridge action: \(action)")
+            }
+        }
+        
+        private func handleSafariDebuggerMessage(_ body: [String: Any]) {
+            guard let type = body["type"] as? String,
+                  let data = body["data"] as? [String: Any] else { return }
+            
+            switch type {
+            case "environmentAnalysis":
+                print("🔍 Safari Debugger: Environment Analysis Results")
+                print("=" + String(repeating: "=", count: 50))
+                
+                if let userAgent = data["userAgent"] as? String {
+                    print("📱 User Agent: \(userAgent)")
+                }
+                
+                if let viewport = data["viewport"] as? [String: Any] {
+                    print("📐 Viewport: \(viewport)")
+                }
+                
+                if let mediaQueries = data["mediaQueries"] as? [String: Any] {
+                    print("📺 Media Queries: \(mediaQueries)")
+                }
+                
+                if let fonts = data["fonts"] as? [String: Any] {
+                    print("🔤 Fonts: \(fonts)")
+                }
+                
+                if let tables = data["tables"] as? [String: Any] {
+                    print("📊 Tables Analysis:")
+                    if let tablesFound = tables["tablesFound"] as? Int,
+                       let totalWrappingCells = tables["totalWrappingCells"] as? Int {
+                        print("  - Tables found: \(tablesFound)")
+                        print("  - Total wrapping cells: \(totalWrappingCells)")
+                    }
+                    
+                    if let analysis = tables["analysis"] as? [[String: Any]] {
+                        for (index, tableData) in analysis.enumerated() {
+                            if let wrappingCells = tableData["wrappingCells"] as? Int,
+                               let cellsAnalyzed = tableData["cellsAnalyzed"] as? Int {
+                                print("  - Table \(index): \(wrappingCells)/\(cellsAnalyzed) cells wrapping")
+                            }
+                        }
+                    }
+                }
+                
+                print("=" + String(repeating: "=", count: 50))
+                
+                // Save the results to a file for comparison with Safari web results
+                DispatchQueue.global(qos: .background).async {
+                    do {
+                        let jsonData = try JSONSerialization.data(withJSONObject: data, options: .prettyPrinted)
+                        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                        let fileURL = documentsPath.appendingPathComponent("wkwebview-analysis.json")
+                        try jsonData.write(to: fileURL)
+                        print("💾 WKWebView analysis saved to: \(fileURL.path)")
+                    } catch {
+                        print("❌ Failed to save WKWebView analysis: \(error)")
+                    }
+                }
+                
+            default:
+                print("🔍 Safari Debugger: Unknown message type: \(type)")
             }
         }
     }

@@ -9,48 +9,45 @@ import SwiftUI
 
 struct SavedPagesView: View {
     @Environment(\.osrsTheme) var osrsTheme
+    @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = SavedPagesViewModel()
     @State private var showingSearchView = false
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $appState.savedNavigationPath) {
             VStack(spacing: 0) {
+                // Custom header matching Home and History layout
+                SavedPagesHeaderView(
+                    onSearchSavedPages: { showingSearchView = true },
+                    onSortByDate: { viewModel.sortBy(.date) },
+                    onSortByTitle: { viewModel.sortBy(.title) },
+                    onClearAllSavedPages: { viewModel.clearAllSavedPages() },
+                    onExportReadingList: { viewModel.exportReadingList() }
+                )
+                
                 if viewModel.savedPages.isEmpty {
                     emptyStateView
                 } else {
                     savedPagesListView
                 }
             }
-            .navigationTitle("Saved Pages")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarHidden(true)
             .background(.osrsBackground)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button("Search Saved Pages") {
-                            showingSearchView = true
-                        }
-                        
-                        Button("Sort by Date") {
-                            viewModel.sortBy(.date)
-                        }
-                        
-                        Button("Sort by Title") {
-                            viewModel.sortBy(.title)
-                        }
-                        
-                        Divider()
-                        
-                        Button("Export Reading List") {
-                            viewModel.exportReadingList()
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
             .sheet(isPresented: $showingSearchView) {
                 SavedPagesSearchView(viewModel: viewModel)
+            }
+            .navigationDestination(for: NavigationDestination.self) { destination in
+                switch destination {
+                case .search:
+                    DedicatedSearchView()
+                        .environmentObject(appState)
+                        .environment(\.osrsTheme, osrsTheme)
+                case .article(let articleDestination):
+                    ArticleView(pageTitle: articleDestination.title, pageUrl: articleDestination.url)
+                        .environmentObject(appState)
+                        .environment(\.osrsTheme, osrsTheme)
+                }
             }
         }
         .task {
@@ -62,17 +59,17 @@ struct SavedPagesView: View {
         VStack(spacing: 24) {
             Image(systemName: "bookmark")
                 .font(.system(size: 64))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.osrsSecondaryTextColor)
             
             VStack(spacing: 12) {
                 Text("No Saved Pages")
                     .font(.title2)
                     .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.osrsPrimaryTextColor)
                 
                 Text("Save pages while browsing to build your personal reading list")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.osrsSecondaryTextColor)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
@@ -83,7 +80,7 @@ struct SavedPagesView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
             .background(.osrsPrimary)
-            .foregroundColor(.osrsOnPrimaryColor)
+            .foregroundStyle(.osrsOnPrimary)
             .cornerRadius(8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -113,6 +110,8 @@ struct SavedPagesView: View {
             }
         }
         .listStyle(PlainListStyle())
+        .scrollContentBackground(.hidden)
+        .background(.osrsBackground)
         .refreshable {
             await viewModel.refresh()
         }
@@ -120,44 +119,33 @@ struct SavedPagesView: View {
 }
 
 struct SavedPageRowView: View {
+    @Environment(\.osrsTheme) var osrsTheme
     let savedPage: SavedPage
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Page thumbnail or icon
-                AsyncImage(url: savedPage.thumbnailUrl) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Image(systemName: "doc.text")
-                        .foregroundColor(.secondary)
-                }
-                .frame(width: 48, height: 48)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                
+                // Main content section (title and description) - matches search results
                 VStack(alignment: .leading, spacing: 4) {
                     Text(savedPage.title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
+                        .font(.osrsListTitle)  // Use same font as search results
                         .lineLimit(2)
+                        .foregroundStyle(.osrsPrimaryTextColor)
                         .multilineTextAlignment(.leading)
                     
                     if let description = savedPage.description {
                         Text(description)
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
                             .lineLimit(2)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                             .multilineTextAlignment(.leading)
                     }
                     
                     HStack {
                         Text(savedPage.savedDate, style: .date)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                         
                         if savedPage.isOfflineAvailable {
                             Spacer()
@@ -170,13 +158,29 @@ struct SavedPageRowView: View {
                 
                 Spacer()
                 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Thumbnail positioned on the right (matching search results layout)
+                AsyncImage(url: savedPage.thumbnailUrl) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipped()
+                } placeholder: {
+                    Image(systemName: "doc.text.fill")
+                        .foregroundStyle(.osrsPlaceholderColor)
+                        .font(.title2)
+                }
+                .frame(width: 60, height: 60)  // Match search results size
+                .background(.osrsSearchBoxBackgroundColor)  // Match search results background
+                .cornerRadius(8)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
+        .listRowBackground(osrsTheme.surface)  // Proper theme background
+        .listRowSeparator(.visible, edges: .bottom)
+        .listRowSeparatorTint(osrsTheme.divider)
     }
 }
 
@@ -191,13 +195,13 @@ struct SavedPagesSearchView: View {
                 // Search bar
                 HStack {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.osrsPlaceholderColor)
                     
                     TextField("Search saved pages", text: $searchText)
                         .textFieldStyle(PlainTextFieldStyle())
                 }
                 .padding()
-                .background(Color(.systemGray6))
+                .background(.osrsSearchBoxBackgroundColor)
                 .cornerRadius(10)
                 .padding()
                 
@@ -220,6 +224,57 @@ struct SavedPagesSearchView: View {
                 }
             }
         }
+    }
+}
+
+struct SavedPagesHeaderView: View {
+    let onSearchSavedPages: () -> Void
+    let onSortByDate: () -> Void
+    let onSortByTitle: () -> Void
+    let onClearAllSavedPages: () -> Void
+    let onExportReadingList: () -> Void
+    
+    var body: some View {
+        HStack {
+            // Left-aligned "Saved Pages" title matching Home and History
+            Text("Saved Pages")
+                .font(.osrsDisplay)
+                .foregroundStyle(.osrsPrimaryTextColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Right-aligned menu button (matches History and Home ellipsis menu)
+            Menu {
+                Button("Search Saved Pages") {
+                    onSearchSavedPages()
+                }
+                
+                Button("Sort by Date") {
+                    onSortByDate()
+                }
+                
+                Button("Sort by Title") {
+                    onSortByTitle()
+                }
+                
+                Divider()
+                
+                Button("Clear All Saved Pages", role: .destructive) {
+                    onClearAllSavedPages()
+                }
+                
+                Button("Export Reading List") {
+                    onExportReadingList()
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.osrsSecondaryTextColor)
+                    .frame(width: 48, height: 48)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.osrsBackground)
     }
 }
 

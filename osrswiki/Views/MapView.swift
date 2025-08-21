@@ -8,8 +8,22 @@
 import SwiftUI
 
 struct MapView: View {
+    @EnvironmentObject var appState: AppState
+    
     var body: some View {
-        osrsMapLibreView()
+        NavigationStack(path: $appState.mapNavigationPath) {
+            osrsMapLibreView()
+                .navigationDestination(for: NavigationDestination.self) { destination in
+                    switch destination {
+                    case .search:
+                        DedicatedSearchView()
+                            .environmentObject(appState)
+                    case .article(let articleDestination):
+                        ArticleView(pageTitle: articleDestination.title, pageUrl: articleDestination.url)
+                            .environmentObject(appState)
+                    }
+                }
+        }
     }
 }
 

@@ -42,11 +42,11 @@ struct NotificationSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Notification Permission")
                             .font(.headline)
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.osrsPrimaryTextColor)
                         
                         Text(notificationManager.permissionStatus.description)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                     }
                     
                     Spacer()
@@ -63,7 +63,7 @@ struct NotificationSettingsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("To receive notifications, please enable them in Settings:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                         
                         Button("Open Settings") {
                             notificationManager.openSettings()
@@ -125,7 +125,7 @@ struct NotificationSettingsView: View {
                 VStack(spacing: 12) {
                     HStack {
                         Text("Start Time")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.osrsPrimaryTextColor)
                         Spacer()
                         DatePicker("", selection: $notificationManager.quietHoursStart, displayedComponents: .hourAndMinute)
                             .labelsHidden()
@@ -133,7 +133,7 @@ struct NotificationSettingsView: View {
                     
                     HStack {
                         Text("End Time")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.osrsPrimaryTextColor)
                         Spacer()
                         DatePicker("", selection: $notificationManager.quietHoursEnd, displayedComponents: .hourAndMinute)
                             .labelsHidden()
