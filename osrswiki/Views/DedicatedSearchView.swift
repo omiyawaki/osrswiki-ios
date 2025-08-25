@@ -38,26 +38,36 @@ struct DedicatedSearchView: View {
             }
         }
         .onAppear {
+            // Focus immediately before any other setup
+            isSearchFocused = true
+            
             // Set up navigation callback - use NavigationStack navigation
-            viewModel.navigateToArticle = { title, url in
-                appState.navigateToArticle(title: title, url: url)
-            }
-            
-            // Configure navigation bar appearance to theme the back button chevron
-            configureNavigationBarAppearance()
-            
-            // Auto-focus search field when view appears (matches Android SearchActivity)
-            DispatchQueue.main.async {
-                isSearchFocused = true
+            viewModel.navigateToArticle = { title, url, searchResult in
+                if let searchResult = searchResult {
+                    // Use rich navigation with metadata for search results
+                    appState.navigateToArticle(
+                        title: title,
+                        url: url,
+                        snippet: searchResult.description,
+                        thumbnailUrl: searchResult.thumbnailUrl
+                    )
+                } else {
+                    // Fallback to simple navigation
+                    appState.navigateToArticle(title: title, url: url)
+                }
             }
         }
     }
     
     private func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
+        appearance.configureWithTransparentBackground()
         appearance.backgroundColor = UIColor(osrsTheme.surface)
         appearance.titleTextAttributes = [.foregroundColor: UIColor(osrsTheme.primaryTextColor)]
+        
+        // Remove the separator line by setting shadow properties
+        appearance.shadowColor = .clear
+        appearance.shadowImage = UIImage()
         
         // Configure back button appearance - this is the key for the chevron color
         appearance.backButtonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor(osrsTheme.primary)]
@@ -96,20 +106,11 @@ struct DedicatedSearchView: View {
                     .onSubmit {
                         performSearch()
                     }
-                    .onTapGesture {
-                        // Force focus and keyboard when tapped (matches Android behavior)
-                        isSearchFocused = true
-                        
-                        // Additional keyboard forcing - similar to Android's showSoftInput
-                        DispatchQueue.main.async {
-                            UIApplication.shared.sendAction(#selector(UIResponder.becomeFirstResponder), to: nil, from: nil, for: nil)
-                        }
-                    }
                 
                 if !searchText.isEmpty {
                     Button(action: clearSearch) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.osrsPlaceholderColor)
+                            .foregroundStyle(.osrsSecondaryTextColor)
                     }
                 }
                 
@@ -118,13 +119,13 @@ struct DedicatedSearchView: View {
                     appState.showError("Voice search not yet implemented")
                 }) {
                     Image(systemName: "mic")
-                        .foregroundStyle(.osrsPlaceholderColor)
+                        .foregroundStyle(.osrsSecondaryTextColor)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .frame(height: 36)
-            .background(.osrsSearchBoxBackgroundColor)
+            .background(.osrsSurfaceVariant)
             .cornerRadius(18)
             .padding(.horizontal)
             
@@ -139,11 +140,12 @@ struct DedicatedSearchView: View {
     private var contentSection: some View {
         Group {
             if searchText.isEmpty {
-                // Show history when no search text (matches Android SearchFragment initial state)
-                historySection
+                // Show empty state when no search text (history now belongs in History tab)
+                emptySearchState
             } else if viewModel.isSearching && viewModel.searchResults.isEmpty {
                 // Show loading during initial search
                 ProgressView("Searching...")
+                    .progressViewStyle(CircularProgressViewStyle())                    .tint(.osrsPrimaryColor)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if viewModel.searchResults.isEmpty && !searchText.isEmpty && !viewModel.isSearching {
                 // Show no results
@@ -195,7 +197,7 @@ struct DedicatedSearchView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.osrsSearchBoxBackgroundColor)
+                        .background(.osrsSurfaceVariant)
                         .foregroundStyle(.osrsSecondaryTextColor)
                         .cornerRadius(16)
                         .font(.subheadline)
@@ -206,36 +208,24 @@ struct DedicatedSearchView: View {
         }
     }
     
-    private var historySection: some View {
-        List {
-            if viewModel.searchHistory.isEmpty {
-                EmptyStateView(
-                    iconName: "clock",
-                    title: "No Search History",
-                    subtitle: "Your search history will appear here"
-                )
-                .listRowSeparator(.hidden)
-                .listRowBackground(osrsTheme.surface)
-            } else {
-                ForEach(viewModel.searchHistory) { historyItem in
-                    HistoryRowView(historyItem: ThemedHistoryItem(
-                        pageTitle: historyItem.displayTitle,
-                        pageUrl: historyItem.pageUrl.absoluteString,
-                        snippet: historyItem.description,
-                        timestamp: historyItem.visitedDate,
-                        source: 1
-                    )) {
-                        // Use direct navigation via AppState
-                        appState.navigateToArticle(title: historyItem.pageTitle, url: historyItem.pageUrl)
-                    }
-                }
-                .onDelete { indexSet in
-                    viewModel.deleteHistoryItems(at: indexSet)
-                }
-            }
+    private var emptySearchState: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundStyle(.osrsSecondaryTextColor)
+            
+            Text("Search OSRS Wiki")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundStyle(.osrsPrimaryTextColor)
+            
+            Text("Enter a search term to find articles, items, quests, and more.")
+                .font(.body)
+                .foregroundStyle(.osrsSecondaryTextColor)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
         }
-        .listStyle(PlainListStyle())
-        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.osrsBackground)
     }
     
@@ -248,8 +238,9 @@ struct DedicatedSearchView: View {
                         description: result.namespace,
                         url: result.url.absoluteString,
                         thumbnailUrl: result.thumbnailUrl,
-                        pageId: nil
-                    ), searchQuery: searchText) {
+                        pageId: nil,
+                        searchQuery: searchText // Pass search query for highlighting
+                    )) {
                         viewModel.selectSearchResult(result)
                         viewModel.addToRecentSearches(searchText)
                         // Don't dismiss modal - let article present over search results

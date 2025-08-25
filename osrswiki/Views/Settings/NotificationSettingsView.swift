@@ -55,7 +55,7 @@ struct NotificationSettingsView: View {
                         Button("Enable") {
                             notificationManager.requestPermission()
                         }
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.osrsPrimary)
                     }
                 }
                 
@@ -69,7 +69,7 @@ struct NotificationSettingsView: View {
                             notificationManager.openSettings()
                         }
                         .font(.caption)
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.osrsPrimary)
                     }
                     .padding(.top, 8)
                 }
@@ -267,7 +267,7 @@ enum NotificationPermissionStatus {
     var color: Color {
         switch self {
         case .notDetermined: return .orange
-        case .denied: return .red
+        case .denied: return .red  
         case .authorized: return .green
         }
     }

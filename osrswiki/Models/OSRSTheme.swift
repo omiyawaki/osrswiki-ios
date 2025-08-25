@@ -68,6 +68,15 @@ protocol osrsThemeProtocol {
     /// Search box background - equivalent to Android's ?attr/search_box_background_color
     var searchBoxBackgroundColor: Color { get }
     
+    /// Map control text color - equivalent to Android's ?attr/map_control_text
+    var mapControlTextColor: Color { get }
+    
+    /// Map control background color - equivalent to Android's ?attr/map_control_background
+    var mapControlBackgroundColor: Color { get }
+    
+    /// Bottom navigation inactive color - equivalent to Android's @color/bottom_nav_inactive
+    var bottomNavInactiveColor: Color { get }
+    
     // MARK: - Legacy Convenience Properties (for backwards compatibility)
     
     var textPrimary: Color { get }
@@ -96,6 +105,9 @@ enum osrsThemeStyle: Hashable {
     case bottomNavBackgroundColor
     case placeholderColor
     case searchBoxBackgroundColor
+    case mapControlTextColor
+    case mapControlBackgroundColor
+    case bottomNavInactiveColor
     
     // MARK: - Legacy (for backwards compatibility)
     case textPrimary, textSecondary
@@ -158,6 +170,9 @@ struct osrsThemeColor: ShapeStyle, Hashable {
         case .bottomNavBackgroundColor: return theme.bottomNavBackgroundColor
         case .placeholderColor: return theme.placeholderColor
         case .searchBoxBackgroundColor: return theme.searchBoxBackgroundColor
+        case .mapControlTextColor: return theme.mapControlTextColor
+        case .mapControlBackgroundColor: return theme.mapControlBackgroundColor
+        case .bottomNavInactiveColor: return theme.bottomNavInactiveColor
             
         // MARK: - Legacy (for backwards compatibility)
         case .textPrimary: return theme.textPrimary
@@ -206,6 +221,9 @@ extension ShapeStyle where Self == osrsThemeColor {
     static var osrsBottomNavBackgroundColor: osrsThemeColor { osrsThemeColor(.bottomNavBackgroundColor) }
     static var osrsPlaceholderColor: osrsThemeColor { osrsThemeColor(.placeholderColor) }
     static var osrsSearchBoxBackgroundColor: osrsThemeColor { osrsThemeColor(.searchBoxBackgroundColor) }
+    static var osrsMapControlTextColor: osrsThemeColor { osrsThemeColor(.mapControlTextColor) }
+    static var osrsMapControlBackgroundColor: osrsThemeColor { osrsThemeColor(.mapControlBackgroundColor) }
+    static var osrsBottomNavInactiveColor: osrsThemeColor { osrsThemeColor(.bottomNavInactiveColor) }
     
     // MARK: - Legacy (for backwards compatibility)
     static var osrsTextPrimary: osrsThemeColor { osrsThemeColor(.textPrimary) }
@@ -372,6 +390,15 @@ struct osrsLightTheme: osrsThemeProtocol {
     /// Equivalent to Android: ?attr/search_box_background_color → #1A000000
     var searchBoxBackgroundColor: Color { Color.black.opacity(0.1) } // #1A000000
     
+    /// Equivalent to Android: ?attr/map_control_text → @color/gray_very_light (#fbfbfb)
+    var mapControlTextColor: Color { Color(hex: "#fbfbfb") } // gray_very_light
+    
+    /// Equivalent to Android: ?attr/map_control_background → @color/black (#000000)
+    var mapControlBackgroundColor: Color { Color.black } // black
+    
+    /// Equivalent to Android: @color/bottom_nav_inactive → #663A2E1C (40% opacity of #3A2E1C)
+    var bottomNavInactiveColor: Color { Color(hex: "#9e9583") } // bottom_nav_inactive - pre-calculated 40% alpha blend
+    
     // MARK: - Legacy (for backwards compatibility)
     var textPrimary: Color { primaryTextColor }   // delegates to semantic
     var textSecondary: Color { secondaryTextColor } // delegates to semantic
@@ -434,6 +461,15 @@ struct osrsDarkTheme: osrsThemeProtocol {
     
     /// Equivalent to Android: ?attr/search_box_background_color → #1A000000
     var searchBoxBackgroundColor: Color { Color.white.opacity(0.1) } // light overlay on dark background
+    
+    /// Equivalent to Android: ?attr/map_control_text → @color/gray_very_light (#fbfbfb)
+    var mapControlTextColor: Color { Color(hex: "#fbfbfb") } // gray_very_light
+    
+    /// Equivalent to Android: ?attr/map_control_background → @color/black (#000000)
+    var mapControlBackgroundColor: Color { Color.black } // black
+    
+    /// Equivalent to Android: @color/bottom_nav_inactive → #663A2E1C (40% opacity of #3A2E1C)
+    var bottomNavInactiveColor: Color { Color(hex: "#9e9583") } // bottom_nav_inactive - pre-calculated 40% alpha blend - same for dark theme
     
     // MARK: - Legacy (for backwards compatibility)
     var textPrimary: Color { primaryTextColor }   // delegates to semantic

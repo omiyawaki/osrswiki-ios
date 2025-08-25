@@ -11,7 +11,6 @@ import Combine
 @MainActor
 class SearchViewModel: ObservableObject {
     @Published var searchResults: [SearchResult] = []
-    @Published var searchHistory: [HistoryItem] = []
     @Published var recentSearches: [String] = []
     @Published var isSearching: Bool = false
     @Published var errorMessage: String?
@@ -27,33 +26,32 @@ class SearchViewModel: ObservableObject {
     private let searchLimit = 20
     
     // Navigation callback - will be set by the view
-    var navigateToArticle: ((String, URL) -> Void)?
+    var navigateToArticle: ((String, URL, SearchResult?) -> Void)?
     
     init() {
-        loadSearchHistory()
+        PerformanceTimer.shared.start("SearchViewModel.init")
+        
+        PerformanceTimer.shared.start("loadRecentSearches")
         loadRecentSearches()
+        _ = PerformanceTimer.shared.end("loadRecentSearches")
+        
+        PerformanceTimer.shared.start("setupSearchDebouncing")
         setupSearchDebouncing()
+        _ = PerformanceTimer.shared.end("setupSearchDebouncing")
+        
+        _ = PerformanceTimer.shared.end("SearchViewModel.init")
     }
     
     private func setupSearchDebouncing() {
-        // Immediate search trigger for truly live results like Android
+        // Fixed: Use debounced search to prevent rapid API calls and UI conflicts
         $currentQuery
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main) // Faster than 500ms but prevents conflicts
             .removeDuplicates()
             .sink { [weak self] query in
-                print("🔍 SearchViewModel: Query changed to '\(query)'")
-                Task {
+                print("🔍 SearchViewModel: Debounced query changed to '\(query)'")
+                Task { @MainActor in
                     await self?.performSearch(query: query, isNewSearch: true)
                 }
-            }
-            .store(in: &cancellables)
-            
-        // Optional: Keep a longer debounced version for API efficiency
-        $currentQuery
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .removeDuplicates()
-            .sink { [weak self] query in
-                // This could be used for more expensive operations
-                print("🔍 SearchViewModel: Debounced query: '\(query)'")
             }
             .store(in: &cancellables)
     }
@@ -70,10 +68,15 @@ class SearchViewModel: ObservableObject {
         // Cancel previous search if it's still running
         currentSearchTask?.cancel()
         
+        // CRASH FIX: Atomic state updates to prevent race conditions during list rendering
         if isNewSearch {
+            await Task.yield() // Let other UI updates complete
             searchOffset = 0
-            searchResults = []
-            errorMessage = nil
+            // Clear results in a separate operation to prevent rendering conflicts
+            DispatchQueue.main.async { [weak self] in
+                self?.searchResults = []
+                self?.errorMessage = nil
+            }
         }
         
         isSearching = true
@@ -95,20 +98,31 @@ class SearchViewModel: ObservableObject {
                 
                 guard !Task.isCancelled else { 
                     print("🔍 SearchViewModel: Search task was cancelled")
+                    // CRASH FIX: Clean up state on cancellation
+                    await MainActor.run {
+                        isSearching = false
+                    }
                     return 
                 }
                 
                 print("🔍 SearchViewModel: Got \(response.results.count) results, total: \(response.totalCount)")
                 
-                if isNewSearch {
-                    searchResults = response.results
-                } else {
-                    searchResults.append(contentsOf: response.results)
+                // CRASH FIX: Atomic array updates to prevent list rendering conflicts
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    
+                    if isNewSearch {
+                        self.searchResults = response.results
+                    } else {
+                        // Use batch update to prevent intermediate states
+                        var updatedResults = self.searchResults
+                        updatedResults.append(contentsOf: response.results)
+                        self.searchResults = updatedResults
+                    }
+                    
+                    self.totalResultCount = response.totalCount
+                    self.searchOffset += response.results.count
                 }
-                
-                hasMoreResults = response.hasMore
-                totalResultCount = response.totalCount
-                searchOffset += response.results.count
                 
             } catch let error as SearchError {
                 guard !Task.isCancelled else { return }
@@ -136,21 +150,8 @@ class SearchViewModel: ObservableObject {
     }
     
     func selectSearchResult(_ result: SearchResult) {
-        // Add to history
-        let historyItem = HistoryItem(
-            id: UUID().uuidString,
-            pageTitle: result.title,
-            pageUrl: result.url,
-            visitedDate: Date(),
-            thumbnailUrl: result.thumbnailUrl,
-            description: result.description
-        )
-        
-        historyRepository.addToHistory(historyItem)
-        loadSearchHistory()
-        
-        // Navigate to article view within the app
-        navigateToArticle?(result.title, result.url)
+        // Navigate to article view - history will be tracked by ArticleViewModel
+        navigateToArticle?(result.title, result.url, result)
     }
     
     func addToRecentSearches(_ query: String) {
@@ -185,17 +186,6 @@ class SearchViewModel: ObservableObject {
         // For now, this is a placeholder
     }
     
-    func deleteHistoryItems(at indexSet: IndexSet) {
-        for index in indexSet {
-            let item = searchHistory[index]
-            historyRepository.removeFromHistory(item.id)
-        }
-        loadSearchHistory()
-    }
-    
-    private func loadSearchHistory() {
-        searchHistory = historyRepository.getHistory()
-    }
     
     private func loadRecentSearches() {
         if let saved = UserDefaults.standard.array(forKey: "recent_searches") as? [String] {
@@ -247,4 +237,3 @@ struct HistoryItem: Identifiable, Codable {
         return formatter.localizedString(for: visitedDate, relativeTo: Date())
     }
 }
-

@@ -109,6 +109,7 @@ class osrsThemeManager: ObservableObject {
         loadCollapseTablesSettings()
         updateCurrentTheme()
         setupSystemColorSchemeObserver()
+        // Note: Navigation bar and global theming is now handled in osrswikiApp.swift
     }
     
     // MARK: - Public Methods
@@ -189,12 +190,18 @@ class osrsThemeManager: ObservableObject {
         let resolvedColorScheme = selectedTheme == .automatic ? systemColorScheme : nil
         currentTheme = selectedTheme.theme(for: resolvedColorScheme)
         currentColorScheme = selectedTheme.colorScheme ?? systemColorScheme
+        
+        // Note: Global theming is now handled in osrswikiApp.swift to avoid duplication
+        print("🎨 [THEME MANAGER] Theme updated: \(selectedTheme.displayName)")
     }
     
     private func setupSystemColorSchemeObserver() {
         // Note: This will be called from the app level when system color scheme changes
         // The updateSystemColorScheme method handles the actual updates
     }
+    
+    // Note: Navigation bar and control theming is now handled globally in osrswikiApp.swift
+    // This eliminates the whack-a-mole problem by applying theming at the app root level
 }
 
 // MARK: - WebView Integration

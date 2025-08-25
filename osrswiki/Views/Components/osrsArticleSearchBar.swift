@@ -69,7 +69,7 @@ struct osrsArticleSearchBar: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .frame(height: 36)
-                .background(osrsTheme.searchBoxBackgroundColor)
+                .background(osrsTheme.surfaceVariant)
                 .cornerRadius(18)
             }
             .frame(maxWidth: .infinity)

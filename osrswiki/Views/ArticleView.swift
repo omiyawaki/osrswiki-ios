@@ -12,6 +12,8 @@ struct ArticleView: View {
     @Environment(\.osrsTheme) var osrsTheme
     @EnvironmentObject var themeManager: osrsThemeManager
     @EnvironmentObject var appState: AppState
+    // Make overlayManager optional to handle preview rendering
+    @Environment(\.overlayManager) var overlayManager: GlobalOverlayManager?
     @StateObject private var viewModel: ArticleViewModel
     @StateObject private var speechManager = osrsSpeechRecognitionManager()
     @State private var isShowingShareSheet = false
@@ -22,12 +24,16 @@ struct ArticleView: View {
     
     let pageTitle: String?
     let pageUrl: URL
+    let snippet: String?
+    let thumbnailUrl: URL?
     
-    init(pageTitle: String?, pageUrl: URL, collapseTablesEnabled: Bool = true) {
+    init(pageTitle: String?, pageUrl: URL, snippet: String? = nil, thumbnailUrl: URL? = nil, collapseTablesEnabled: Bool = true) {
         self.pageTitle = pageTitle
         self.pageUrl = pageUrl
-        self._viewModel = StateObject(wrappedValue: ArticleViewModel(pageUrl: pageUrl, pageTitle: pageTitle, pageId: nil, collapseTablesEnabled: collapseTablesEnabled))
-        print("🏗️ ArticleView: Created with title='\(pageTitle ?? "nil")' url=\(pageUrl), collapseTables=\(collapseTablesEnabled)")
+        self.snippet = snippet
+        self.thumbnailUrl = thumbnailUrl
+        self._viewModel = StateObject(wrappedValue: ArticleViewModel(pageUrl: pageUrl, pageTitle: pageTitle, pageId: nil, snippet: snippet, thumbnailUrl: thumbnailUrl, collapseTablesEnabled: collapseTablesEnabled))
+        print("🏗️ ArticleView: Created with title='\(pageTitle ?? "nil")' url=\(pageUrl), snippet='\(snippet ?? "nil")', thumbnail='\(thumbnailUrl?.absoluteString ?? "nil")', collapseTables=\(collapseTablesEnabled)")
     }
     
     var body: some View {
@@ -35,8 +41,14 @@ struct ArticleView: View {
             // Custom search bar instead of navigation bar
             osrsArticleSearchBar(
                 onBackAction: {
-                    // Navigate back using NavigationStack
-                    appState.navigateBack()
+                    // Hide article bar immediately at start of navigation for smooth transition
+                    overlayManager?.hideArticleBottomBar()
+                    
+                    // Small delay to ensure visual feedback is seen before navigation
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        // Navigate back using NavigationStack
+                        appState.navigateBack()
+                    }
                 },
                 onMenuAction: {
                     isShowingPageMenu = true
@@ -46,40 +58,72 @@ struct ArticleView: View {
                 }
             )
             
-            // Progress bar
-            if viewModel.isLoading {
-                ProgressView(value: viewModel.loadingProgress, total: 1.0)
-                    .progressViewStyle(LinearProgressViewStyle())
+            // WebView content with overlaid progress bar - extends to bottom
+            ZStack {
+                ArticleWebView(viewModel: viewModel)
+                    .background(Color.osrsBackground)
+                
+                // Custom OSRS progress bar overlaid and centered in webview area
+                if viewModel.isLoading {
+                    osrsProgressView(
+                        progress: viewModel.loadingProgress,
+                        progressText: viewModel.loadingProgressText ?? "Loading page..."
+                    )
                     .transition(.opacity)
+                }
             }
-            
-            // WebView content
-            ArticleWebView(viewModel: viewModel)
-                .background(Color.osrsBackgroundColor)
-            
-            // Bottom Action Bar - replicating Android functionality
-            osrsArticleBottomBar(
-                onSaveAction: {
-                    viewModel.performSaveAction()
-                },
-                onFindInPageAction: {
-                    viewModel.performFindInPageAction()
-                },
-                onAppearanceAction: {
-                    viewModel.performAppearanceAction()
-                },
-                onContentsAction: {
-                    isShowingTableOfContents = true
-                },
-                isBookmarked: viewModel.isBookmarked,
-                saveState: viewModel.saveState,
-                saveProgress: viewModel.saveProgress,
-                hasTableOfContents: viewModel.hasTableOfContents
-            )
         }
         .background(Color.osrsBackgroundColor)
         .navigationBarHidden(true)
-        .toolbar(.hidden, for: .tabBar)
+        .toolbarVisibility(.hidden, for: .tabBar)
+        // Add horizontal gestures matching Android PageActivity functionality
+        .osrsHorizontalGestures(
+            onBackGesture: {
+                // Match Android's back gesture behavior
+                print("[ArticleView] Horizontal back gesture triggered")
+                
+                // Hide article bar immediately for smooth transition
+                overlayManager?.hideArticleBottomBar()
+                
+                // Navigate back using AppState (matches Android back press)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    appState.navigateBack()
+                }
+            },
+            onSidebarGesture: {
+                // Match Android's sidebar gesture behavior  
+                print("[ArticleView] Horizontal sidebar gesture triggered")
+                
+                // Only open if table of contents is available (matches Android logic)
+                if viewModel.hasTableOfContents {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isShowingTableOfContents = true
+                    }
+                } else {
+                    print("[ArticleView] Table of contents not available - gesture ignored")
+                }
+            }
+        )
+        .onAppear {
+            viewModel.loadArticle(theme: osrsTheme)
+            updateArticleBottomBar()
+        }
+        .onChange(of: viewModel.hasTableOfContents) { _, _ in
+            // Update article bottom bar overlay when table of contents availability changes
+            updateArticleBottomBar()
+        }
+        .onChange(of: viewModel.isBookmarked) { _, _ in
+            // Update article bottom bar overlay when bookmark status changes
+            updateArticleBottomBar()
+        }
+        .onChange(of: viewModel.saveState) { _, _ in
+            // Update article bottom bar overlay when save state changes
+            updateArticleBottomBar()
+        }
+        .onDisappear {
+            // Hide article bottom bar overlay when leaving article view
+            overlayManager?.hideArticleBottomBar()
+        }
             .sheet(isPresented: $isShowingShareSheet) {
                 ShareSheet(items: [pageUrl])
             }
@@ -163,7 +207,6 @@ struct ArticleView: View {
                 }
             }
         .onAppear {
-            print("📱 ArticleView: onAppear called - loading article")
             viewModel.loadArticle(theme: osrsTheme)
         }
         .onChange(of: osrsTheme as? osrsLightTheme != nil) { _, _ in
@@ -176,6 +219,34 @@ struct ArticleView: View {
         .onDisappear {
             // Clean up speech recognition when leaving the view
             speechManager.cleanup()
+        }
+    }
+    
+    // MARK: - Overlay Management
+    
+    private func updateArticleBottomBar() {
+        // Only update overlay if manager is available (not in preview rendering)
+        guard let overlayManager = overlayManager else { return }
+        
+        overlayManager.showArticleBottomBar {
+            osrsArticleBottomBar(
+                onSaveAction: {
+                    viewModel.performSaveAction()
+                },
+                onFindInPageAction: {
+                    viewModel.performFindInPageAction()
+                },
+                onAppearanceAction: {
+                    viewModel.performAppearanceAction()
+                },
+                onContentsAction: {
+                    isShowingTableOfContents = true
+                },
+                isBookmarked: viewModel.isBookmarked,
+                saveState: viewModel.saveState,
+                saveProgress: viewModel.saveProgress,
+                hasTableOfContents: viewModel.hasTableOfContents
+            )
         }
     }
     
@@ -255,8 +326,8 @@ struct TableOfContentsView: View {
 #Preview {
     NavigationStack {
         ArticleView(
-            pageTitle: "Dragon",
-            pageUrl: URL(string: "https://oldschool.runescape.wiki/w/Dragon")!
+            pageTitle: "Sample Article",
+            pageUrl: URL(string: "about:blank")!
         )
         .environmentObject(AppState())
         .environmentObject(osrsThemeManager.preview)

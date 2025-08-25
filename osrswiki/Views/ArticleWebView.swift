@@ -11,41 +11,55 @@ import UniformTypeIdentifiers
 
 // MARK: - iOS Asset Handler (matches Android's appassets.androidplatform.net)
 class IOSAssetHandler: NSObject, WKURLSchemeHandler {
+    
+    // MARK: - Task State Management (Fix for "This task has already been stopped" crash)
+    // Using Set with ObjectIdentifier for iOS 18+ compatibility instead of NSHashTable
+    private var activeTasks: Set<ObjectIdentifier> = []
+    private let taskQueue = DispatchQueue(label: "IOSAssetHandler.TaskQueue", qos: .userInitiated)
+    private let tasksLock = NSLock() // Thread safety for task tracking
+    
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
-        print("🚨 IOSAssetHandler: CALLED! URL: \(urlSchemeTask.request.url?.absoluteString ?? "nil")")
-        
-        guard let url = urlSchemeTask.request.url else {
-            print("❌ IOSAssetHandler: No URL in request")
-            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
-            return
-        }
-        
-        // Get the registered scheme from UserDefaults
-        let expectedScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
-        
-        guard url.scheme == expectedScheme else {
-            print("❌ IOSAssetHandler: Invalid scheme: '\(url.scheme ?? "nil")' (expected: '\(expectedScheme)')")
-            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
-            return
-        }
+        taskQueue.async {
+            // Add task to active set to track its lifecycle
+            let taskId = ObjectIdentifier(urlSchemeTask)
+            self.tasksLock.lock()
+            self.activeTasks.insert(taskId)
+            self.tasksLock.unlock()
+            
+            print("🚨 IOSAssetHandler: CALLED! URL: \(urlSchemeTask.request.url?.absoluteString ?? "nil")")
+            
+            guard let url = urlSchemeTask.request.url else {
+                print("❌ IOSAssetHandler: No URL in request")
+                self.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
+                return
+            }
+            
+            // Get the registered scheme from UserDefaults
+            let expectedScheme = UserDefaults.standard.string(forKey: "WKURLSchemeHandler_Scheme") ?? "app-assets"
+            
+            guard url.scheme == expectedScheme else {
+                print("❌ IOSAssetHandler: Invalid scheme: '\(url.scheme ?? "nil")' (expected: '\(expectedScheme)')")
+                self.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
+                return
+            }
         
         // Extract asset path (e.g., app-assets://localhost/styles/themes.css -> styles/themes.css)
         let assetPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         print("📁 IOSAssetHandler: Extracted asset path: '\(assetPath)'")
         
-        // Check if this is an image request (external resource that needs proxying)
-        if assetPath.hasPrefix("images/") || assetPath.contains(".png") || assetPath.contains(".jpg") || assetPath.contains(".jpeg") || assetPath.contains(".gif") || assetPath.contains(".svg") {
-            print("🖼️ IOSAssetHandler: Image request detected, proxying to wiki: \(assetPath)")
-            handleImageProxy(urlSchemeTask: urlSchemeTask, assetPath: assetPath)
-            return
-        }
-        
-        // Handle PHP/MediaWiki loader requests (external resources)
-        if assetPath.hasSuffix(".php") || assetPath.contains("load.php") {
-            print("🔧 IOSAssetHandler: MediaWiki loader request, proxying to wiki: \(assetPath)")
-            handleMediaWikiProxy(urlSchemeTask: urlSchemeTask, assetPath: assetPath)
-            return
-        }
+            // Check if this is an image request (external resource that needs proxying)
+            if assetPath.hasPrefix("images/") || assetPath.contains(".png") || assetPath.contains(".jpg") || assetPath.contains(".jpeg") || assetPath.contains(".gif") || assetPath.contains(".svg") {
+                print("🖼️ IOSAssetHandler: Image request detected, proxying to wiki: \(assetPath)")
+                self.handleImageProxy(urlSchemeTask: urlSchemeTask, assetPath: assetPath)
+                return
+            }
+            
+            // Handle PHP/MediaWiki loader requests (external resources)
+            if assetPath.hasSuffix(".php") || assetPath.contains("load.php") {
+                print("🔧 IOSAssetHandler: MediaWiki loader request, proxying to wiki: \(assetPath)")
+                self.handleMediaWikiProxy(urlSchemeTask: urlSchemeTask, assetPath: assetPath)
+                return
+            }
         
         // Debug: Show bundle structure for asset resolution debugging
         let bundleMainPath = Bundle.main.bundlePath
@@ -119,9 +133,10 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
         if bundlePath == nil {
             let filename = assetPath.components(separatedBy: "/").last ?? assetPath
             let pathComponents = filename.split(separator: ".")
-            if pathComponents.count >= 2 {
+            if pathComponents.count >= 2,
+               let lastComponent = pathComponents.last {
                 let nameWithoutExtension = String(pathComponents.dropLast().joined(separator: "."))
-                let fileExtension = String(pathComponents.last!)
+                let fileExtension = String(lastComponent)
                 let assetsFilePath = "Assets/\(assetPath.replacingOccurrences(of: filename, with: ""))\(nameWithoutExtension)"
                 
                 if let path = Bundle.main.path(forResource: assetsFilePath, ofType: fileExtension) {
@@ -160,9 +175,10 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
         if bundlePath == nil {
             let flatFileName = assetPath.components(separatedBy: "/").last ?? assetPath
             let pathComponents = flatFileName.split(separator: ".")
-            if pathComponents.count >= 2 {
+            if pathComponents.count >= 2,
+               let lastComponent = pathComponents.last {
                 let nameWithoutExtension = String(pathComponents.dropLast().joined(separator: "."))
-                let fileExtension = String(pathComponents.last!)
+                let fileExtension = String(lastComponent)
                 
                 if let path = Bundle.main.path(forResource: nameWithoutExtension, ofType: fileExtension) {
                     bundlePath = path
@@ -173,14 +189,14 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
             }
         }
         
-        guard let finalBundlePath = bundlePath,
-              let data = FileManager.default.contents(atPath: finalBundlePath) else {
-            print("🔴 [ASSET_HANDLER] Asset not found: \(assetPath)")
-            print("🔴 [ASSET_HANDLER] Attempted paths: \(attemptedPaths)")
-            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, 
-                                                  userInfo: [NSLocalizedDescriptionKey: "Asset not found: \(assetPath)"]))
-            return
-        }
+            guard let finalBundlePath = bundlePath,
+                  let data = FileManager.default.contents(atPath: finalBundlePath) else {
+                print("🔴 [ASSET_HANDLER] Asset not found: \(assetPath)")
+                print("🔴 [ASSET_HANDLER] Attempted paths: \(attemptedPaths)")
+                self.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 404, 
+                                                      userInfo: [NSLocalizedDescriptionKey: "Asset not found: \(assetPath)"]))
+                return
+            }
         
         print("🟢 [ASSET_HANDLER] Found asset at: \(finalBundlePath)")
         
@@ -196,20 +212,88 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
             mimeType = "application/octet-stream"
         }
         
-        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [
-            "Content-Type": mimeType,
-            "Content-Length": "\(data.count)"
-        ])
-        
-        urlSchemeTask.didReceive(response!)
-        urlSchemeTask.didReceive(data)
-        urlSchemeTask.didFinish()
-        
-        print("📱 iOS Asset Handler: Served \(assetPath) (\(data.count) bytes)")
+            guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [
+                "Content-Type": mimeType,
+                "Content-Length": "\(data.count)"
+            ]) else {
+                print("❌ Failed to create HTTP response for \(assetPath)")
+                self.completeTask(urlSchemeTask, withError: NSError(domain: "AssetHandler", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create HTTP response"]))
+                return
+            }
+            
+            self.completeTask(urlSchemeTask, withResponse: response, data: data)
+            print("📱 iOS Asset Handler: Served \(assetPath) (\(data.count) bytes)")
+        }
     }
     
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
-        // Handle cancellation if needed
+        taskQueue.async {
+            print("🛑 IOSAssetHandler: Stopping task: \(urlSchemeTask.request.url?.absoluteString ?? "unknown")")
+            
+            // Remove from active tasks to prevent completion attempts
+            let taskId = ObjectIdentifier(urlSchemeTask)
+            self.tasksLock.lock()
+            if self.activeTasks.contains(taskId) {
+                self.activeTasks.remove(taskId)
+                self.tasksLock.unlock()
+                print("✅ IOSAssetHandler: Task removed from active set")
+            } else {
+                self.tasksLock.unlock()
+                print("⚠️ IOSAssetHandler: Task was already removed or never started")
+            }
+        }
+    }
+    
+    // MARK: - Safe Task Completion Methods (Fix for race conditions)
+    
+    private func completeTask(_ urlSchemeTask: WKURLSchemeTask, withResponse response: HTTPURLResponse, data: Data) {
+        taskQueue.async {
+            // CRITICAL: Check if task is still active before completing
+            let taskId = ObjectIdentifier(urlSchemeTask)
+            self.tasksLock.lock()
+            guard self.activeTasks.contains(taskId) else {
+                self.tasksLock.unlock()
+                print("⚠️ IOSAssetHandler: RACE CONDITION PREVENTED: Task already stopped, skipping completion")
+                return
+            }
+            
+            do {
+                urlSchemeTask.didReceive(response)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+                self.activeTasks.remove(taskId)
+                self.tasksLock.unlock()
+                print("✅ IOSAssetHandler: Task completed successfully")
+            } catch {
+                print("❌ IOSAssetHandler: Error completing task: \(error)")
+                self.activeTasks.remove(taskId)
+                self.tasksLock.unlock()
+            }
+        }
+    }
+    
+    private func completeTask(_ urlSchemeTask: WKURLSchemeTask, withError error: Error) {
+        taskQueue.async {
+            // CRITICAL: Check if task is still active before failing
+            let taskId = ObjectIdentifier(urlSchemeTask)
+            self.tasksLock.lock()
+            guard self.activeTasks.contains(taskId) else {
+                self.tasksLock.unlock()
+                print("⚠️ IOSAssetHandler: RACE CONDITION PREVENTED: Task already stopped, skipping error")
+                return
+            }
+            
+            do {
+                urlSchemeTask.didFailWithError(error)
+                self.activeTasks.remove(taskId)
+                self.tasksLock.unlock()
+                print("❌ IOSAssetHandler: Task failed with error: \(error.localizedDescription)")
+            } catch {
+                print("❌ IOSAssetHandler: Error failing task: \(error)")
+                self.activeTasks.remove(taskId)
+                self.tasksLock.unlock()
+            }
+        }
     }
     
     // MARK: - Image Proxying Methods
@@ -220,23 +304,23 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
         
         guard let url = URL(string: originalImageURL) else {
             print("❌ IOSAssetHandler: Invalid image URL: \(originalImageURL)")
-            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
+            self.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
             return
         }
         
         print("🌐 IOSAssetHandler: Proxying image from: \(originalImageURL)")
         
         // Fetch the image from the original wiki
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             if let error = error {
                 print("❌ IOSAssetHandler: Image fetch failed: \(error.localizedDescription)")
-                urlSchemeTask.didFailWithError(error)
+                self?.completeTask(urlSchemeTask, withError: error)
                 return
             }
             
             guard let data = data, let httpResponse = response as? HTTPURLResponse else {
                 print("❌ IOSAssetHandler: No image data received")
-                urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
+                self?.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
                 return
             }
             
@@ -257,8 +341,9 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
             }
             
             // Create response with proper headers
-            let customResponse = HTTPURLResponse(
-                url: urlSchemeTask.request.url!,
+            guard let requestUrl = urlSchemeTask.request.url,
+                  let customResponse = HTTPURLResponse(
+                url: requestUrl,
                 statusCode: httpResponse.statusCode,
                 httpVersion: "HTTP/1.1",
                 headerFields: [
@@ -266,12 +351,13 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
                     "Content-Length": "\(data.count)",
                     "Cache-Control": "max-age=3600"
                 ]
-            )
+            ) else {
+                print("❌ Failed to create HTTP response for image proxy")
+                self?.completeTask(urlSchemeTask, withError: NSError(domain: "ImageProxy", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create HTTP response"]))
+                return
+            }
             
-            urlSchemeTask.didReceive(customResponse!)
-            urlSchemeTask.didReceive(data)
-            urlSchemeTask.didFinish()
-            
+            self?.completeTask(urlSchemeTask, withResponse: customResponse, data: data)
             print("📱 iOS Image Proxy: Served \(assetPath) (\(data.count) bytes)")
         }
         
@@ -289,23 +375,23 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
         
         guard let url = URL(string: originalURL) else {
             print("❌ IOSAssetHandler: Invalid MediaWiki URL: \(originalURL)")
-            urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
+            self.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 400, userInfo: nil))
             return
         }
         
         print("🌐 IOSAssetHandler: Proxying MediaWiki resource from: \(originalURL)")
         
         // Fetch the resource from the original wiki
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             if let error = error {
                 print("❌ IOSAssetHandler: MediaWiki fetch failed: \(error.localizedDescription)")
-                urlSchemeTask.didFailWithError(error)
+                self?.completeTask(urlSchemeTask, withError: error)
                 return
             }
             
             guard let data = data, let httpResponse = response as? HTTPURLResponse else {
                 print("❌ IOSAssetHandler: No MediaWiki data received")
-                urlSchemeTask.didFailWithError(NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
+                self?.completeTask(urlSchemeTask, withError: NSError(domain: "IOSAssetHandler", code: 404, userInfo: nil))
                 return
             }
             
@@ -315,8 +401,9 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
             let mimeType = httpResponse.mimeType ?? "application/javascript"
             
             // Create response with proper headers
-            let customResponse = HTTPURLResponse(
-                url: urlSchemeTask.request.url!,
+            guard let requestUrl = urlSchemeTask.request.url,
+                  let customResponse = HTTPURLResponse(
+                url: requestUrl,
                 statusCode: httpResponse.statusCode,
                 httpVersion: "HTTP/1.1", 
                 headerFields: [
@@ -324,12 +411,13 @@ class IOSAssetHandler: NSObject, WKURLSchemeHandler {
                     "Content-Length": "\(data.count)",
                     "Cache-Control": "max-age=3600"
                 ]
-            )
+            ) else {
+                print("❌ Failed to create HTTP response for MediaWiki proxy")
+                self?.completeTask(urlSchemeTask, withError: NSError(domain: "MediaWikiProxy", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create HTTP response"]))
+                return
+            }
             
-            urlSchemeTask.didReceive(customResponse!)
-            urlSchemeTask.didReceive(data)
-            urlSchemeTask.didFinish()
-            
+            self?.completeTask(urlSchemeTask, withResponse: customResponse, data: data)
             print("📱 iOS MediaWiki Proxy: Served \(assetPath) (\(data.count) bytes)")
         }
         
@@ -416,6 +504,9 @@ struct ArticleWebView: UIViewRepresentable {
         
         // Set up gesture recognizers for iOS-specific interactions
         setupGestureRecognizers(webView: webView)
+        
+        // Configure WebView for horizontal gesture support
+        osrsWebViewBridge.configureWebView(webView)
         
         // Enable find-in-page interaction (iOS 16+)
         if #available(iOS 16.0, *) {
@@ -530,9 +621,14 @@ struct ArticleWebView: UIViewRepresentable {
                 /* Optimize tables for mobile */
                 .wikitable {
                     font-size: 14px;
+                    width: 100%;
+                    table-layout: auto;
+                }
+                
+                /* Handle horizontal overflow at container level */
+                .collapsible-content {
                     overflow-x: auto;
-                    display: block;
-                    white-space: nowrap;
+                    -webkit-overflow-scrolling: touch;
                 }
                 
                 /* Improve readability */
@@ -750,14 +846,33 @@ struct ArticleWebView: UIViewRepresentable {
         private func handleRenderTimelineMessage(_ body: [String: Any]) {
             if let message = body["message"] as? String,
                let timestamp = body["timestamp"] as? Double {
-                print("RenderTimeline: \(message) at \(timestamp)")
+                let timeString = DateFormatter.timeFormatter.string(from: Date())
+                print("📊 [\(timeString)] 🎯 RenderTimeline: \(message)")
                 
                 // Handle specific render events
                 if message == "Event: StylingScriptsComplete" {
-                    // Similar to Android's page ready callback
+                    // ANDROID PARITY: JavaScript is ready - now wait for body reveal completion
                     DispatchQueue.main.async {
-                        self.parent.viewModel.isLoading = false
+                        // TIMING MEASUREMENT: Record JavaScript completion time
+                        let jsCompletionTime = Date()
+                        let jsCompletionTimeString = DateFormatter.timeFormatter.string(from: jsCompletionTime)
+                        
+                        if let progressTime = self.parent.viewModel.progressCompletionTime {
+                            let delay = jsCompletionTime.timeIntervalSince(progressTime)
+                            self.parent.viewModel.lastMeasuredDelay = delay
+                            print("📊 [\(jsCompletionTimeString)] 🟢 JAVASCRIPT COMPLETE: WebKit-to-JS delay: \(String(format: "%.3f", delay))s")
+                        }
+                        
+                        // Progress stays at 95% until body reveal is complete
+                        self.parent.viewModel.loadingProgress = 0.97
+                        self.parent.viewModel.loadingProgressText = "Revealing content..."
+                        print("📊 [\(jsCompletionTimeString)] 🎯 JS READY: Progressing to 97%, waiting for body reveal...")
+                        
+                        // Trigger body reveal and complete progress when it's done
+                        self.parent.viewModel.completeLoadingWithBodyReveal()
                     }
+                } else {
+                    print("📊 [\(timeString)] 📝 OTHER JS EVENT: \(message)")
                 }
             }
         }
@@ -879,7 +994,7 @@ struct ArticleWebView: UIViewRepresentable {
 }
 
 #Preview {
-    ArticleWebView(viewModel: ArticleViewModel(pageUrl: URL(string: "https://oldschool.runescape.wiki/w/Dragon")!))
+    ArticleWebView(viewModel: ArticleViewModel(pageUrl: URL(string: "about:blank")!))
         .environmentObject(AppState())
         .environmentObject(osrsThemeManager.preview)
 }

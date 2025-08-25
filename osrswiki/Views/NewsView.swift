@@ -15,22 +15,28 @@ struct NewsView: View {
     
     var body: some View {
         NavigationStack(path: $appState.newsNavigationPath) {
-            VStack(spacing: 0) {
-                // Custom header matching Android
-                HeaderView()
-                
-                ScrollView {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    // Custom header matching Android (now inside ScrollView)
+                    HeaderView()
+                    
+                    // Search bar at top (matches History page layout)
+                    SearchBarView(placeholder: "Search OSRS Wiki") {
+                        // Navigate to search using NavigationStack
+                        appState.navigateToSearch()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    
+                    // Feed content
                     LazyVStack(spacing: 12) {
-                        // Search bar at top (matches Android)
-                        SearchBarView(placeholder: "Search OSRS Wiki") {
-                            // Navigate to search using NavigationStack
-                            appState.navigateToSearch()
-                        }
-                        .padding(.horizontal)
                         
                         // Feed content matching Android structure
                         if viewModel.isLoading {
                             ProgressView("Loading news...")
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .tint(.osrsPrimaryColor)
                                 .frame(maxWidth: .infinity, minHeight: 200)
                         } else if let wikiFeed = viewModel.wikiFeed {
                             // Recent Updates section (horizontal scrolling)
@@ -48,7 +54,9 @@ struct NewsView: View {
                                                 UpdateCardView(updateItem: update) {
                                                     // Navigate to article
                                                     if !update.articleUrl.isEmpty {
-                                                        appState.navigateToArticle(url: URL(string: update.articleUrl)!)
+                                                        if let url = URL(string: update.articleUrl) {
+                                                            appState.navigateToArticle(url: url)
+                                                        }
                                                     }
                                                 }
                                                 .zIndex(1) // Ensure cards are above other content
@@ -107,9 +115,11 @@ struct NewsView: View {
             .navigationDestination(for: NavigationDestination.self) { destination in
                 switch destination {
                 case .search:
-                    DedicatedSearchView()
-                        .environmentObject(appState)
-                        .environment(\.osrsTheme, osrsTheme)
+                    ImmediateStyledSearchView(
+                        appState: appState,
+                        themeManager: themeManager,
+                        theme: osrsTheme
+                    )
                 case .article(let articleDestination):
                     ArticleView(pageTitle: articleDestination.title, pageUrl: articleDestination.url)
                         .environmentObject(appState)
@@ -135,18 +145,18 @@ struct SearchBarView: View {
                     .font(.system(size: 16, weight: .medium))
                 
                 Text(placeholder)
-                    .foregroundStyle(.osrsSecondaryTextColor)
+                    .foregroundStyle(.osrsPlaceholderColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
                 // Voice search icon on the far right (matches Android)
                 Image(systemName: "mic")
-                    .foregroundStyle(.osrsSecondaryTextColor)
+                    .foregroundStyle(.osrsPlaceholderColor)
                     .font(.system(size: 16, weight: .medium))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .frame(height: 36)
-            .background(.osrsSearchBoxBackgroundColor)
+            .background(.osrsSurfaceVariant)
             .cornerRadius(18)
         }
         .buttonStyle(PlainButtonStyle())
@@ -197,9 +207,9 @@ struct HeaderView: View {
                 print("Random page button tapped")
             }) {
                 Image(systemName: "shuffle")
-                    .font(.system(size: 24))
+                    .font(.system(size: 20))
                     .foregroundStyle(.osrsSecondaryTextColor)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Random page")
         }
@@ -274,8 +284,8 @@ struct UpdateCardView: View {
                 
                 // Content section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(updateItem.title)
-                        .font(.osrsTitle)
+                    Text(osrsStringUtils.extractMainTitle(updateItem.title))
+                        .font(.osrsTitleBold) // Use heavier Alegreya Bold for better emphasis
                         .foregroundStyle(.osrsPrimaryTextColor)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -294,8 +304,6 @@ struct UpdateCardView: View {
         .frame(width: 280)
         .background(.osrsSurfaceVariant)
         .cornerRadius(8)
-        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-        .shadow(color: .black.opacity(0.16), radius: 1, x: 0, y: 1)
         .buttonStyle(PlainButtonStyle())
     }
 }
@@ -325,8 +333,6 @@ struct AnnouncementCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.osrsSurfaceVariant)
             .cornerRadius(8)
-            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-            .shadow(color: .black.opacity(0.16), radius: 1, x: 0, y: 1)
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 8)
@@ -359,8 +365,6 @@ struct OnThisDayCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.osrsSurfaceVariant)
             .cornerRadius(8)
-            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-            .shadow(color: .black.opacity(0.16), radius: 1, x: 0, y: 1)
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 8)
@@ -385,7 +389,7 @@ struct PopularPagesCardView: View {
                 ForEach(popularPages) { page in
                     Button(action: { onLinkTap(page.pageUrl) }) {
                         Text(page.title)
-                            .font(.osrsBody)
+                            .osrsLinkText(fontSize: 16) // Apply heavier font weight to popular page links
                             .foregroundStyle(.osrsLink)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -396,8 +400,6 @@ struct PopularPagesCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.osrsSurfaceVariant)
             .cornerRadius(8)
-            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-            .shadow(color: .black.opacity(0.16), radius: 1, x: 0, y: 1)
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 8)
@@ -507,6 +509,10 @@ struct MonospaceYearHTMLTextView: View {
                         }
                     }
                     attributedString.addAttribute(.foregroundColor, value: linkColor, range: linkRange)
+                    
+                    // Apply medium font weight to make links heavier (iOS-Android consistency)
+                    let mediumFont = UIFont.systemFont(ofSize: 16, weight: .medium)
+                    attributedString.addAttribute(.font, value: mediumFont, range: linkRange)
                 }
             }
             
@@ -593,6 +599,10 @@ struct HTMLTextView: View {
                         }
                     }
                     attributedString.addAttribute(.foregroundColor, value: linkColor, range: linkRange)
+                    
+                    // Apply medium font weight to make links heavier (iOS-Android consistency)
+                    let mediumFont = UIFont.systemFont(ofSize: 16, weight: .medium)
+                    attributedString.addAttribute(.font, value: mediumFont, range: linkRange)
                 }
             }
             
@@ -615,18 +625,22 @@ struct StaticNewsView: View {
     
     var body: some View {
         NavigationStack(path: $appState.newsNavigationPath) {
-            VStack(spacing: 0) {
-                // Custom header matching Android
-                HeaderView()
-                
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        // Search bar at top (matches Android)
-                        SearchBarView(placeholder: "Search OSRS Wiki") {
-                            // Navigate to search using NavigationStack
-                            appState.navigateToSearch()
-                        }
-                        .padding(.horizontal)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    // Custom header matching Android (now inside ScrollView)
+                    HeaderView()
+                    
+                    // Search bar at top (matches History page layout)
+                    SearchBarView(placeholder: "Search OSRS Wiki") {
+                        // Navigate to search using NavigationStack
+                        appState.navigateToSearch()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    
+                    // Feed content
+                    LazyVStack(spacing: 12) {
                         
                         // Feed content matching Android structure - using STATIC data (no @Published dependencies)
                         let _ = print("🔍 StaticNewsView rendering with \(wikiFeed.recentUpdates.count) updates, \(wikiFeed.announcements.count) announcements")
@@ -688,7 +702,6 @@ struct StaticNewsView: View {
                     }
                     .padding(.vertical)
                 }
-                .background(.osrsBackground)  // Apply theme background to ScrollView content
             }
         }
         .navigationTitle("")
@@ -718,18 +731,22 @@ struct NewsViewWithPreloadedData: View {
     
     var body: some View {
         NavigationStack(path: $appState.newsNavigationPath) {
-            VStack(spacing: 0) {
-                // Custom header matching Android
-                HeaderView()
-                
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        // Search bar at top (matches Android)
-                        SearchBarView(placeholder: "Search OSRS Wiki") {
-                            // Navigate to search using NavigationStack
-                            appState.navigateToSearch()
-                        }
-                        .padding(.horizontal)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    // Custom header matching Android (now inside ScrollView)
+                    HeaderView()
+                    
+                    // Search bar at top (matches History page layout)
+                    SearchBarView(placeholder: "Search OSRS Wiki") {
+                        // Navigate to search using NavigationStack
+                        appState.navigateToSearch()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    
+                    // Feed content
+                    LazyVStack(spacing: 12) {
                         
                         // Feed content matching Android structure - use pre-loaded data  
                         // DEBUG: Print state before rendering
@@ -751,7 +768,9 @@ struct NewsViewWithPreloadedData: View {
                                                 UpdateCardView(updateItem: update) {
                                                     // Navigate to article
                                                     if !update.articleUrl.isEmpty {
-                                                        appState.navigateToArticle(url: URL(string: update.articleUrl)!)
+                                                        if let url = URL(string: update.articleUrl) {
+                                                            appState.navigateToArticle(url: url)
+                                                        }
                                                     }
                                                 }
                                             }

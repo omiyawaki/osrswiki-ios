@@ -59,7 +59,7 @@ struct SavedPagesView: View {
         VStack(spacing: 24) {
             Image(systemName: "bookmark")
                 .font(.system(size: 64))
-                .foregroundStyle(.osrsSecondaryTextColor)
+                .foregroundStyle(.osrsPlaceholderColor)
             
             VStack(spacing: 12) {
                 Text("No Saved Pages")
@@ -128,7 +128,7 @@ struct SavedPageRowView: View {
             HStack(spacing: 12) {
                 // Main content section (title and description) - matches search results
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(savedPage.title)
+                    Text(osrsStringUtils.extractMainTitle(savedPage.title))
                         .font(.osrsListTitle)  // Use same font as search results
                         .lineLimit(2)
                         .foregroundStyle(.osrsPrimaryTextColor)
@@ -138,7 +138,7 @@ struct SavedPageRowView: View {
                         Text(description)
                             .font(.subheadline)
                             .lineLimit(2)
-                            .foregroundStyle(.osrsSecondaryTextColor)
+                            .foregroundStyle(.osrsPrimaryTextColor) // Use primary color to match title
                             .multilineTextAlignment(.leading)
                     }
                     
@@ -268,7 +268,7 @@ struct SavedPagesHeaderView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 24))
-                    .foregroundStyle(.osrsSecondaryTextColor)
+                    .foregroundStyle(.osrsPlaceholderColor)
                     .frame(width: 48, height: 48)
             }
         }

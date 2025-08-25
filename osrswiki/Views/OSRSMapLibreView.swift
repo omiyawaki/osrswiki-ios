@@ -15,6 +15,7 @@ struct osrsMapLibreView: View {
     @EnvironmentObject var themeManager: osrsThemeManager
     @Environment(\.osrsTheme) var osrsTheme
     @State private var currentFloor: Int = 0
+    @State private var isMapReady: Bool = false
     
     private let maxFloor = 3
     
@@ -32,8 +33,33 @@ struct osrsMapLibreView: View {
     var body: some View {
         ZStack {
             // MapLibre Native view
-            osrsMapLibreMapView(currentFloor: $currentFloor)
-                .ignoresSafeArea(.all, edges: .top)
+            osrsMapLibreMapView(
+                currentFloor: $currentFloor,
+                isMapReady: $isMapReady
+            )
+            .ignoresSafeArea(.all, edges: .top)
+            
+            // Simple loading overlay that appears only briefly when map is not ready
+            if !isMapReady {
+                VStack {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(Color(osrsTheme.mapControlTextColor))
+                        Text("Loading map...")
+                            .foregroundColor(Color(osrsTheme.mapControlTextColor))
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    .padding(20)
+                    .background(Color(osrsTheme.mapControlBackgroundColor).opacity(0.8))
+                    .cornerRadius(12)
+                    Spacer()
+                }
+                .background(Color(osrsTheme.mapControlBackgroundColor).opacity(0.3))
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: isMapReady)
+            }
             
             // Floor controls overlay aligned with compass
             VStack {
@@ -70,6 +96,7 @@ struct osrsMapLibreView: View {
 struct osrsFloorControlsView: View {
     @Binding var currentFloor: Int
     let maxFloor: Int
+    @Environment(\.osrsTheme) var osrsTheme
     
     // Fixed compass dimensions for alignment
     private let compassWidth: CGFloat = 40
@@ -86,16 +113,16 @@ struct osrsFloorControlsView: View {
                 Image(systemName: "chevron.up")
                     .font(.system(size: 16, weight: .medium))
                     .frame(width: compassWidth, height: compassHeight)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(osrsTheme.mapControlTextColor))
                     .background(Color.clear)
             }
             .disabled(currentFloor >= maxFloor)
-            .opacity(currentFloor >= maxFloor ? 0.5 : 1.0)
+            .opacity(currentFloor >= maxFloor ? 0.4 : 1.0)
             
             // Floor number display
             Text("\(currentFloor)")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(Color(osrsTheme.mapControlTextColor))
                 .frame(width: compassWidth, height: 28)
                 .padding(.vertical, 4)
             
@@ -108,15 +135,15 @@ struct osrsFloorControlsView: View {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 16, weight: .medium))
                     .frame(width: compassWidth, height: compassHeight)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(osrsTheme.mapControlTextColor))
                     .background(Color.clear)
             }
             .disabled(currentFloor <= 0)
-            .opacity(currentFloor <= 0 ? 0.5 : 1.0)
+            .opacity(currentFloor <= 0 ? 0.4 : 1.0)
         }
         .padding(4)
         .frame(width: compassWidth + 8) // Match compass width (40px + 8px padding)
-        .background(Color.black)
+        .background(Color(osrsTheme.mapControlBackgroundColor))
         .clipShape(Capsule()) // Perfect semicircles at top and bottom
         .shadow(radius: 4)
     }
@@ -125,218 +152,199 @@ struct osrsFloorControlsView: View {
 
 struct osrsMapLibreMapView: UIViewRepresentable {
     @Binding var currentFloor: Int
+    @Binding var isMapReady: Bool
     
-    func makeUIView(context: Context) -> MLNMapView {
-        let mapView = MLNMapView()
-        mapView.delegate = context.coordinator
+    func makeUIView(context: Context) -> UIView {
+        // Create container view
+        let containerView = UIView()
+        containerView.backgroundColor = .black
         
-        // Configure MapLibre settings
-        mapView.logoView.isHidden = true
-        mapView.attributionButton.isHidden = true
-        mapView.compassView.isHidden = false
-        mapView.showsScale = false
-        mapView.allowsRotating = true
-        mapView.allowsTilting = false
-        
-        // Set initial camera position to Lumbridge (game coordinates 3234, 3230)
-        let center = CLLocationCoordinate2D(
-            latitude: osrsMapLibreView.MapConstants.defaultLat,
-            longitude: osrsMapLibreView.MapConstants.defaultLon
-        )
-        
-        mapView.setCenter(center, zoomLevel: osrsMapLibreView.MapConstants.defaultZoom, animated: false)
-        
-        // Set bounds based on actual MBTiles tile coverage to prevent scrolling outside content
-        // Based on zoom level 4 coverage: cols 0-3, rows 4-15
-        // This corresponds to the actual area where we have map tiles
-        let contentBounds = MLNCoordinateBounds(
-            sw: CLLocationCoordinate2D(latitude: -85.051129, longitude: -180.0),    // Southwest corner
-            ne: CLLocationCoordinate2D(latitude: 66.513260, longitude: -90.0)      // Northeast corner  
-        )
-        mapView.setVisibleCoordinateBounds(contentBounds, animated: false)
-        
-        print("🗺️ Set map bounds - SW: \(contentBounds.sw), NE: \(contentBounds.ne)")
-        print("🎯 Initial position (Lumbridge): \(center), zoom: \(osrsMapLibreView.MapConstants.defaultZoom)")
-        
-        // Set a minimal custom style to prevent loading default remote style
-        let customStyleJSON = """
-        {
-            "version": 8,
-            "name": "OSRS Map Style",
-            "sources": {},
-            "layers": [
-                {
-                    "id": "background",
-                    "type": "background",
-                    "paint": {
-                        "background-color": "#000000"
+        // Check if shared map is ready
+        if osrsBackgroundMapPreloader.shared.isMapReady {
+            print("✅ Using shared map instance - instant display!")
+            print("🔥 REAL MAP TAB: About to attach shared map to SwiftUI container")
+            print("🔥 REAL MAP TAB: Container frame: \(containerView.frame)")
+            print("🔥 REAL MAP TAB: Container bounds: \(containerView.bounds)")
+            print("🔥 REAL MAP TAB: Container hidden: \(containerView.isHidden)")
+            print("🔥 REAL MAP TAB: Container alpha: \(containerView.alpha)")
+            
+            osrsBackgroundMapPreloader.shared.attachToMainMapContainer(containerView)
+            
+            // Set up coordinator to handle floor updates
+            context.coordinator.setupWithSharedMap()
+            
+            // Mark as ready immediately
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isMapReady = true
+            }
+            
+            // Additional verification after attachment in real app
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                print("🔥 REAL MAP TAB VERIFICATION (2s after attachment):")
+                print("🔥   - Container subviews: \(containerView.subviews.count)")
+                
+                if let mapView = containerView.subviews.first {
+                    print("🔥   - MapView frame: \(mapView.frame)")
+                    print("🔥   - MapView bounds: \(mapView.bounds)")
+                    print("🔥   - MapView hidden: \(mapView.isHidden)")
+                    print("🔥   - MapView alpha: \(mapView.alpha)")
+                    print("🔥   - MapView in window: \(mapView.window != nil)")
+                    
+                    if let mlnMapView = mapView as? MLNMapView {
+                        // Take actual screenshot of real map tab
+                        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 100))
+                        let realTabSnapshot = renderer.image { context in
+                            mlnMapView.drawHierarchy(in: CGRect(x: 0, y: 0, width: 100, height: 100), afterScreenUpdates: true)
+                        }
+                        
+                        // Analyze real tab snapshot
+                        let cgImage = realTabSnapshot.cgImage
+                        let dataProvider = cgImage?.dataProvider
+                        let data = dataProvider?.data
+                        let buffer = CFDataGetBytePtr(data)
+                        
+                        var isBlack = true
+                        if let buffer = buffer {
+                            for i in 0..<400 {
+                                if buffer[i] > 10 {
+                                    isBlack = false
+                                    break
+                                }
+                            }
+                        }
+                        
+                        print("🔥   - REAL MAP TAB snapshot is black: \(isBlack)")
+                        
+                        if isBlack {
+                            print("🔥 SMOKING GUN: Real Map tab IS black - user is correct!")
+                            print("🔥 Issue confirmed: Attachment works but rendering fails")
+                        } else {
+                            print("🔥 Map tab IS rendering - black screen must be UI hierarchy issue")
+                        }
                     }
                 }
-            ]
+            }
+            
+        } else {
+            print("⚠️ Shared map not ready - will show loading state")
+            
+            // Show loading state and wait for shared map to be ready
+            let loadingLabel = UILabel()
+            loadingLabel.text = "Preparing map..."
+            loadingLabel.textColor = .white
+            loadingLabel.textAlignment = .center
+            loadingLabel.translatesAutoresizingMaskIntoConstraints = false
+            
+            containerView.addSubview(loadingLabel)
+            NSLayoutConstraint.activate([
+                loadingLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
+                loadingLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor)
+            ])
+            
+            // Check periodically for shared map to be ready
+            context.coordinator.waitForSharedMap(containerView: containerView) {
+                DispatchQueue.main.async {
+                    context.coordinator.isMapReady = true
+                }
+            }
         }
-        """
         
-        // Create a temporary file URL for the style
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let styleURL = tempDirectory.appendingPathComponent("osrs-style.json")
-        
-        do {
-            try customStyleJSON.write(to: styleURL, atomically: true, encoding: .utf8)
-            mapView.styleURL = styleURL
-            print("✅ Set custom OSRS style")
-        } catch {
-            print("❌ Failed to write style file: \(error)")
-        }
-        
-        return mapView
+        return containerView
     }
     
-    func updateUIView(_ mapView: MLNMapView, context: Context) {
-        context.coordinator.updateFloor(currentFloor, for: mapView)
+    func updateUIView(_ containerView: UIView, context: Context) {
+        // Update floor in shared map
+        Task { @MainActor in
+            context.coordinator.updateFloor(currentFloor)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
-    class Coordinator: NSObject, MLNMapViewDelegate {
+    class Coordinator: NSObject {
         var parent: osrsMapLibreMapView
-        private var currentMapStyle: MLNStyle?
+        var isMapReady: Bool = false
         
         init(_ parent: osrsMapLibreMapView) {
             self.parent = parent
             super.init()
         }
         
-        func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            print("🗺️ MapLibre style loaded successfully")
-            currentMapStyle = style
-            setupMapStyle(style)
-            updateFloor(parent.currentFloor, for: mapView)
-            
-            // Ensure correct zoom level and position after style loads
-            let targetCenter = CLLocationCoordinate2D(
-                latitude: osrsMapLibreView.MapConstants.defaultLat,
-                longitude: osrsMapLibreView.MapConstants.defaultLon
-            )
-            
-            let camera = MLNMapCamera(
-                lookingAtCenter: targetCenter,
-                acrossDistance: 1000,
-                pitch: 0,
-                heading: 0
-            )
-            
-            mapView.setCamera(camera, animated: false)
-            mapView.zoomLevel = osrsMapLibreView.MapConstants.defaultZoom
+        /// Set up coordinator to work with shared map
+        func setupWithSharedMap() {
+            print("✅ Coordinator setup with shared map instance")
+            isMapReady = true
+            parent.isMapReady = true
         }
         
-        private func setupMapStyle(_ style: MLNStyle) {
-            print("⚙️ Setting up OSRS map style")
+        /// Wait for shared map to be ready and attach it
+        @MainActor
+        func waitForSharedMap(containerView: UIView, completion: @escaping () -> Void) {
+            print("⏳ Waiting for shared map to be ready...")
             
-            // Create a simple black background style
-            if let backgroundLayer = style.layer(withIdentifier: "background") as? MLNBackgroundStyleLayer {
-                backgroundLayer.backgroundColor = NSExpression(forConstantValue: UIColor.black)
-            } else {
-                let backgroundLayer = MLNBackgroundStyleLayer(identifier: "background")
-                backgroundLayer.backgroundColor = NSExpression(forConstantValue: UIColor.black)
-                style.addLayer(backgroundLayer)
-            }
-        }
-        
-        func updateFloor(_ floor: Int, for mapView: MLNMapView) {
-            guard let style = currentMapStyle else {
-                print("❌ Style not loaded yet, deferring floor update")
-                return
-            }
+            // Check every 100ms for up to 10 seconds
+            var attempts = 0
+            let maxAttempts = 100
             
-            print("🔄 Switching to floor \(floor)")
-            
-            // Android-style floor switching logic:
-            // 1. Target floor shown at 100% opacity
-            // 2. If floor > 0, show floor 0 as underlay at 50% opacity
-            // 3. Hide all other floors
-            
-            for floorIndex in 0...3 {
-                let layerId = "osrs-layer-\(floorIndex)"
+            func checkSharedMap() {
+                attempts += 1
                 
-                if let layer = style.layer(withIdentifier: layerId) as? MLNRasterStyleLayer {
-                    // Layer already exists, just update visibility and opacity
-                    if floorIndex == floor {
-                        // Target floor: visible at 100% opacity
-                        layer.isVisible = true
-                        layer.rasterOpacity = NSExpression(forConstantValue: 1.0)
-                        print("✅ Floor \(floorIndex): visible at 100%")
-                    } else if floorIndex == 0 && floor > 0 {
-                        // Ground floor underlay when viewing upper floors
-                        layer.isVisible = true
-                        layer.rasterOpacity = NSExpression(forConstantValue: 0.5)
-                        print("✅ Floor \(floorIndex): visible at 50% (underlay)")
-                    } else {
-                        // Hide all other floors
-                        layer.isVisible = false
-                        print("🚫 Floor \(floorIndex): hidden")
+                if osrsBackgroundMapPreloader.shared.isMapReady {
+                    print("✅ Shared map ready - attaching to container")
+                    
+                    // Clear loading state
+                    containerView.subviews.forEach { $0.removeFromSuperview() }
+                    
+                    // Attach shared map
+                    osrsBackgroundMapPreloader.shared.attachToMainMapContainer(containerView)
+                    
+                    // Mark as ready
+                    isMapReady = true
+                    parent.isMapReady = true
+                    completion()
+                    
+                } else if attempts < maxAttempts {
+                    // Keep checking
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        checkSharedMap()
                     }
                 } else {
-                    // Layer doesn't exist yet, create it
-                    addFloorLayer(floor: floorIndex, to: style)
+                    print("⚠️ Shared map not ready after timeout - showing error")
                     
-                    // Set initial visibility based on floor switching logic
-                    if let newLayer = style.layer(withIdentifier: layerId) as? MLNRasterStyleLayer {
-                        if floorIndex == floor {
-                            newLayer.isVisible = true
-                            newLayer.rasterOpacity = NSExpression(forConstantValue: 1.0)
-                        } else if floorIndex == 0 && floor > 0 {
-                            newLayer.isVisible = true
-                            newLayer.rasterOpacity = NSExpression(forConstantValue: 0.5)
-                        } else {
-                            newLayer.isVisible = false
-                        }
-                    }
+                    let errorLabel = UILabel()
+                    errorLabel.text = "Map loading failed"
+                    errorLabel.textColor = .red
+                    errorLabel.textAlignment = .center
+                    errorLabel.translatesAutoresizingMaskIntoConstraints = false
+                    
+                    containerView.subviews.forEach { $0.removeFromSuperview() }
+                    containerView.addSubview(errorLabel)
+                    NSLayoutConstraint.activate([
+                        errorLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
+                        errorLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor)
+                    ])
                 }
             }
+            
+            // Start checking
+            checkSharedMap()
         }
         
-        private func addFloorLayer(floor: Int, to style: MLNStyle) {
-            print("🏗️ Adding MBTiles layer for floor \(floor)")
-            
-            let sourceId = "osrs-source-\(floor)"
-            let layerId = "osrs-layer-\(floor)"
-            let fileName = "map_floor_\(floor)"
-            
-            // Get MBTiles file path
-            guard let mbtilesPath = Bundle.main.path(forResource: fileName, ofType: "mbtiles") else {
-                print("❌ MBTiles file not found: \(fileName)")
+        /// Update floor in shared map
+        @MainActor
+        func updateFloor(_ floor: Int) {
+            guard isMapReady else {
+                print("⚠️ Map not ready yet for floor update")
                 return
             }
             
-            print("✅ Found MBTiles at: \(mbtilesPath)")
-            
-            // Create MBTiles source - MapLibre iOS supports mbtiles:// protocol
-            let mbtilesURLString = "mbtiles://\(mbtilesPath)"
-            
-            // Create raster source using the mbtiles URL
-            let rasterSource = MLNRasterTileSource(
-                identifier: sourceId,
-                configurationURL: URL(string: mbtilesURLString)!
-            )
-            
-            style.addSource(rasterSource)
-            
-            // Create raster layer with nearest-neighbor resampling for crisp, pixelated rendering
-            let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
-            
-            // Set raster resampling to nearest neighbor to match Android's crisp rendering
-            // This prevents smooth interpolation and maintains the pixelated game art style
-            rasterLayer.rasterResamplingMode = NSExpression(forConstantValue: "nearest")
-            
-            style.addLayer(rasterLayer)
-            
-            print("✅ Added MBTiles layer for floor \(floor)")
+            print("🔄 Updating shared map to floor \(floor)")
+            osrsBackgroundMapPreloader.shared.updateFloor(floor)
         }
     }
 }
-
 
 #Preview {
     osrsMapLibreView()

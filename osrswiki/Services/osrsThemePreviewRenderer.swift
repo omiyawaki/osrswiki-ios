@@ -17,8 +17,8 @@ class osrsThemePreviewRenderer: ObservableObject {
     // Singleton instance for shared cache
     static let shared = osrsThemePreviewRenderer()
     
-    // Preview dimensions - larger size to show more content (based on actual card size in screenshot)
-    private static let targetPreviewSize: CGSize = CGSize(width: 300, height: 200)
+    // No fixed dimensions - we'll return the full device-sized render
+    // and let the UI handle scaling/cropping as needed
     
     // Cache for generated previews
     private var previewCache: [String: UIImage] = [:]
@@ -70,7 +70,10 @@ class osrsThemePreviewRenderer: ObservableObject {
         let lightPreview = await generatePreview(for: .osrsLight)
         let darkPreview = await generatePreview(for: .osrsDark)
         
-        return combineImagesLeftRight(leftImage: lightPreview, rightImage: darkPreview)
+        // CRITICAL FIX: Use actual preview size (excludes safe area) instead of full device size
+        // Individual previews are already cropped to content area, so combined image should match
+        let targetSize = lightPreview.size
+        return combineImagesLeftRight(leftImage: lightPreview, rightImage: darkPreview, targetSize: targetSize)
     }
     
     /// Generate single theme preview using ACTUAL app interface with pre-loaded content (like Android)
@@ -114,13 +117,14 @@ class osrsThemePreviewRenderer: ObservableObject {
             .environment(\.colorScheme, forceColorScheme)
             .environment(\.osrsPreviewMode, true)
         
-        // Render at device size and scale down with async waiting for image loading
-        return await renderViewWithImageLoadWait(staticNewsView, targetSize: Self.targetPreviewSize)
+        // Render at device size WITHOUT scaling down - return full resolution
+        let deviceSize = await getDeviceContentSize()
+        return await renderViewWithImageWait(staticNewsView, size: deviceSize)
     }
     
     /// Generate fallback preview when content loading fails
     private func generateFallbackPreview(theme: any osrsThemeProtocol) async -> UIImage {
-        let size = Self.targetPreviewSize
+        let size = await getDeviceContentSize()
         let renderer = UIGraphicsImageRenderer(size: size)
         
         return renderer.image { context in
@@ -148,40 +152,26 @@ class osrsThemePreviewRenderer: ObservableObject {
         }
     }
     
-    /// Render view with async waiting for image loading (fixing theme preview images)
-    private func renderViewWithImageLoadWait(_ view: some View, targetSize: CGSize) async -> UIImage {
-        // Get device screen bounds (like Android getAppContentBounds)
-        let deviceSize = await getDeviceContentSize()
-        
-        print("🖼️ Rendering at device size: \(deviceSize), then scaling to: \(targetSize)")
-        
-        // First render at full device size with image load waiting
-        let deviceImage = await renderViewWithImageWait(view, size: deviceSize)
-        
-        // Then scale down to target preview size
-        return scaleImageToTargetSize(deviceImage, targetSize: targetSize)
-    }
-    
-    /// Render view at device size then scale down (like Android approach)
-    private func renderViewAtDeviceSizeThenScale(_ view: some View, targetSize: CGSize) async -> UIImage {
-        // Get device screen bounds (like Android getAppContentBounds)
-        let deviceSize = await getDeviceContentSize()
-        
-        print("🖼️ Rendering at device size: \(deviceSize), then scaling to: \(targetSize)")
-        
-        // First render at full device size
-        let deviceImage = await renderViewToImage(view, size: deviceSize)
-        
-        // Then scale down to target preview size
-        return scaleImageToTargetSize(deviceImage, targetSize: targetSize)
-    }
+    // Removed scaling methods - we now return full device-sized images
     
     /// Render view to image with proper async image loading waiting
     private func renderViewWithImageWait(_ view: some View, size: CGSize) async -> UIImage {
         return await withCheckedContinuation { continuation in
-            DispatchQueue.main.async {
-                // Create hosting controller
-                let controller = UIHostingController(rootView: view)
+            // Use async task instead of nested DispatchQueue delays
+            Task { @MainActor in
+                // Check for cancellation
+                guard !Task.isCancelled else {
+                    continuation.resume(returning: UIImage())
+                    return
+                }
+                
+                // Create hosting controller with view wrapped to ignore safe area
+                let wrappedView = view
+                    .ignoresSafeArea()
+                    .frame(width: size.width, height: size.height)
+                
+                let controller = UIHostingController(rootView: wrappedView)
+                controller.view.insetsLayoutMarginsFromSafeArea = false
                 
                 // Create a temporary window to provide proper view hierarchy
                 let window = UIWindow(frame: CGRect(origin: .zero, size: size))
@@ -196,8 +186,14 @@ class osrsThemePreviewRenderer: ObservableObject {
                 controller.view.setNeedsLayout()
                 controller.view.layoutIfNeeded()
                 
-                // Wait for pre-loaded NewsView to render (images already cached, no AsyncImage delays)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                // Use proper async/await instead of DispatchQueue.main.asyncAfter
+                do {
+                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    
+                    guard !Task.isCancelled else {
+                        continuation.resume(returning: UIImage())
+                        return
+                    }
                     // Force ScrollView to scroll to top for proper alignment
                     self.forceScrollToTop(in: controller.view)
                     
@@ -205,11 +201,19 @@ class osrsThemePreviewRenderer: ObservableObject {
                     controller.view.setNeedsLayout()
                     controller.view.layoutIfNeeded()
                     
-                    // Render to image
-                    let renderer = UIGraphicsImageRenderer(size: size)
+                    // Get the actual content area (excluding any remaining safe area)
+                    let safeAreaTop = controller.view.safeAreaInsets.top
+                    let contentHeight = size.height - safeAreaTop
+                    let contentSize = CGSize(width: size.width, height: contentHeight)
+                    
+                    // Render to image, cropping out the top safe area
+                    let renderer = UIGraphicsImageRenderer(size: contentSize)
                     let image = renderer.image { context in
                         // Set clear background
-                        context.cgContext.clear(CGRect(origin: .zero, size: size))
+                        context.cgContext.clear(CGRect(origin: .zero, size: contentSize))
+                        
+                        // Translate to skip the safe area at top
+                        context.cgContext.translateBy(x: 0, y: -safeAreaTop)
                         
                         // Render the view
                         controller.view.layer.render(in: context.cgContext)
@@ -219,8 +223,11 @@ class osrsThemePreviewRenderer: ObservableObject {
                     window.isHidden = true
                     window.rootViewController = nil
                     
-                    print("🖼️ Rendered image with top alignment: size \(image.size), scale \(image.scale)")
+                    print("🖼️ Rendered image (no safe area): size \(image.size), cropped \(safeAreaTop)pt from top")
                     continuation.resume(returning: image)
+                } catch {
+                    // Task was cancelled or error occurred
+                    continuation.resume(returning: UIImage())
                 }
             }
         }
@@ -285,39 +292,19 @@ class osrsThemePreviewRenderer: ObservableObject {
         }
     }
     
-    /// Scale image to target size, fit to width, preserve aspect ratio, anchor to top
-    private func scaleImageToTargetSize(_ sourceImage: UIImage, targetSize: CGSize) -> UIImage {
-        let sourceSize = sourceImage.size
-        
-        // Scale to fit width exactly (preserve aspect ratio)
-        let scale = targetSize.width / sourceSize.width
-        let scaledHeight = sourceSize.height * scale
-        
-        print("🖼️ TOP-ANCHOR scaling from \(sourceSize) with scale \(scale) (target: \(targetSize))")
-        print("🖼️ Scaled height: \(scaledHeight), target height: \(targetSize.height)")
-        
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        return renderer.image { context in
-            // Draw the scaled image anchored to the top
-            let sourceRect = CGRect(origin: .zero, size: sourceSize)
-            let targetRect = CGRect(x: 0, y: 0, width: targetSize.width, height: scaledHeight)
-            
-            print("🖼️ Drawing source \(sourceRect) to target \(targetRect), clipped to \(targetSize)")
-            
-            // Set clipping to target size to crop bottom if needed
-            context.cgContext.clip(to: CGRect(origin: .zero, size: targetSize))
-            
-            // Draw the entire source image scaled to fit width, anchored to top
-            sourceImage.draw(in: targetRect)
-        }
-    }
+    // Removed scaleImageToTargetSize - no longer needed
     
     /// Render a SwiftUI view to UIImage with proper view hierarchy
     private func renderViewToImage(_ view: some View, size: CGSize) async -> UIImage {
         return await withCheckedContinuation { continuation in
             DispatchQueue.main.async {
-                // Create hosting controller
-                let controller = UIHostingController(rootView: view)
+                // Create hosting controller with view wrapped to ignore safe area
+                let wrappedView = view
+                    .ignoresSafeArea()
+                    .frame(width: size.width, height: size.height)
+                
+                let controller = UIHostingController(rootView: wrappedView)
+                controller.view.insetsLayoutMarginsFromSafeArea = false
                 
                 // Create a temporary window to provide proper view hierarchy
                 let window = UIWindow(frame: CGRect(origin: .zero, size: size))
@@ -334,11 +321,19 @@ class osrsThemePreviewRenderer: ObservableObject {
                 
                 // Wait for next run loop to ensure layout is complete
                 DispatchQueue.main.async {
-                    // Render to image
-                    let renderer = UIGraphicsImageRenderer(size: size)
+                    // Get the actual content area
+                    let safeAreaTop = controller.view.safeAreaInsets.top
+                    let contentHeight = size.height - safeAreaTop
+                    let contentSize = CGSize(width: size.width, height: contentHeight)
+                    
+                    // Render to image, cropping out the top safe area
+                    let renderer = UIGraphicsImageRenderer(size: contentSize)
                     let image = renderer.image { context in
                         // Set clear background
-                        context.cgContext.clear(CGRect(origin: .zero, size: size))
+                        context.cgContext.clear(CGRect(origin: .zero, size: contentSize))
+                        
+                        // Translate to skip the safe area at top
+                        context.cgContext.translateBy(x: 0, y: -safeAreaTop)
                         
                         // Render the view
                         controller.view.layer.render(in: context.cgContext)
@@ -348,64 +343,46 @@ class osrsThemePreviewRenderer: ObservableObject {
                     window.isHidden = true
                     window.rootViewController = nil
                     
-                    print("🖼️ Rendered image size: \(image.size), scale: \(image.scale)")
+                    print("🖼️ Rendered image size: \(image.size), cropped \(safeAreaTop)pt from top")
                     continuation.resume(returning: image)
                 }
             }
         }
     }
     
-    /// Combine two images side by side with divider, preserving aspect ratio
-    private func combineImagesLeftRight(leftImage: UIImage, rightImage: UIImage) -> UIImage {
-        let size = Self.targetPreviewSize
-        let renderer = UIGraphicsImageRenderer(size: size)
+    /// Combine two images side by side with divider
+    private func combineImagesLeftRight(leftImage: UIImage, rightImage: UIImage, targetSize: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
         
         return renderer.image { context in
-            let halfWidth = size.width / 2
+            let halfWidth = targetSize.width / 2
             
-            // Scale images to fit half-width while preserving aspect ratio
-            let leftScaledImage = scaleImagePreservingAspectRatio(leftImage, targetSize: CGSize(width: halfWidth, height: size.height))
-            let rightScaledImage = scaleImagePreservingAspectRatio(rightImage, targetSize: CGSize(width: halfWidth, height: size.height))
+            // Draw LEFT HALF of light theme image
+            let leftRect = CGRect(x: 0, y: 0, width: halfWidth, height: targetSize.height)
+            context.cgContext.saveGState()
+            context.cgContext.clip(to: leftRect)
+            leftImage.draw(in: CGRect(x: 0, y: 0, width: leftImage.size.width, height: leftImage.size.height))
+            context.cgContext.restoreGState()
             
-            // Draw left half - center in available space
-            let leftRect = CGRect(x: (halfWidth - leftScaledImage.size.width) / 2, 
-                                y: (size.height - leftScaledImage.size.height) / 2, 
-                                width: leftScaledImage.size.width, 
-                                height: leftScaledImage.size.height)
-            leftScaledImage.draw(in: leftRect)
-            
-            // Draw right half - center in available space
-            let rightRect = CGRect(x: halfWidth + (halfWidth - rightScaledImage.size.width) / 2, 
-                                 y: (size.height - rightScaledImage.size.height) / 2, 
-                                 width: rightScaledImage.size.width, 
-                                 height: rightScaledImage.size.height)
-            rightScaledImage.draw(in: rightRect)
+            // Draw RIGHT HALF of dark theme image
+            // Clip to right half of canvas, then draw the right portion of the dark image
+            let rightRect = CGRect(x: halfWidth, y: 0, width: halfWidth, height: targetSize.height)
+            context.cgContext.saveGState()
+            context.cgContext.clip(to: rightRect)
+            // Draw at x=halfWidth to show right half - no centering offset that causes sizing issues
+            rightImage.draw(in: CGRect(x: halfWidth, y: 0, width: rightImage.size.width, height: rightImage.size.height))
+            context.cgContext.restoreGState()
             
             // Draw divider line
             context.cgContext.setStrokeColor(UIColor.systemGray.cgColor)
             context.cgContext.setLineWidth(1.0)
             context.cgContext.move(to: CGPoint(x: halfWidth, y: 0))
-            context.cgContext.addLine(to: CGPoint(x: halfWidth, y: size.height))
+            context.cgContext.addLine(to: CGPoint(x: halfWidth, y: targetSize.height))
             context.cgContext.strokePath()
         }
     }
     
-    /// Scale image to fit target size while preserving aspect ratio (no cropping)
-    private func scaleImagePreservingAspectRatio(_ sourceImage: UIImage, targetSize: CGSize) -> UIImage {
-        let sourceSize = sourceImage.size
-        
-        // Calculate scale to fit (not fill) - use min to preserve aspect ratio
-        let scaleX = targetSize.width / sourceSize.width
-        let scaleY = targetSize.height / sourceSize.height
-        let scale = min(scaleX, scaleY)  // Use min to fit completely (no cropping)
-        
-        let scaledSize = CGSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
-        
-        let renderer = UIGraphicsImageRenderer(size: scaledSize)
-        return renderer.image { _ in
-            sourceImage.draw(in: CGRect(origin: .zero, size: scaledSize))
-        }
-    }
+    // Removed scaleImagePreservingAspectRatio - no longer needed
     
     
     /// Clear all cached previews

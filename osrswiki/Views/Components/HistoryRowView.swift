@@ -24,7 +24,7 @@ struct HistoryRowView: View {
                     .cornerRadius(8)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(historyItem.pageTitle)
+                    Text(osrsStringUtils.extractMainTitle(historyItem.pageTitle))
                         .font(.body)
                         .fontWeight(.medium)
                         .lineLimit(2)
@@ -108,9 +108,9 @@ struct ThemedHistoryItem: Identifiable, Hashable {
     List {
         HistoryRowView(
             historyItem: ThemedHistoryItem(
-                pageTitle: "Dragon scimitar",
-                pageUrl: "https://oldschool.runescape.wiki/w/Dragon_scimitar",
-                snippet: "The dragon scimitar is a scimitar requiring level 60 Attack to wield.",
+                pageTitle: "Sample Item A",
+                pageUrl: "about:blank",
+                snippet: "This is sample preview content for testing the history row layout.",
                 timestamp: Date().addingTimeInterval(-3600),
                 source: 1
             ),
@@ -119,9 +119,9 @@ struct ThemedHistoryItem: Identifiable, Hashable {
         
         HistoryRowView(
             historyItem: ThemedHistoryItem(
-                pageTitle: "Barrows minigame guide",
-                pageUrl: "https://oldschool.runescape.wiki/w/Barrows",
-                snippet: "The Barrows is an area-based combat minigame involving the six Barrows brothers.",
+                pageTitle: "Sample Item B",
+                pageUrl: "about:blank",
+                snippet: "Another sample preview item to demonstrate multiple history entries.",
                 timestamp: Date().addingTimeInterval(-7200),
                 source: 8
             ),

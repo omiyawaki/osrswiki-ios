@@ -338,8 +338,8 @@ class osrsPageHtmlBuilder {
     }
     
     private func extractMainTitle(_ title: String) -> String {
-        // Simple title extraction (can be enhanced later)
-        return title.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Use enhanced title cleaning that matches Android's functionality
+        return osrsStringUtils.extractMainTitle(title)
     }
     
     private func removeDuplicatePageHeaders(_ htmlContent: String) -> String {

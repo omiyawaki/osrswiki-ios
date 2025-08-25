@@ -85,39 +85,25 @@ class osrsCompositePreviewSource: osrsPreviewContentSource {
     
     /// Create fallback content as last resort (like Android's minimal placeholder)
     private func createFallbackContent() -> osrsPreviewContent {
-        // Create realistic content for preview with placeholder images that work in preview context
+        // Create placeholder content for preview generation only
         let fallbackUpdates = [
             UpdateItem(
-                title: "Weekly Game Update",
-                snippet: "This week brings improvements and bug fixes to Old School RuneScape",
-                imageUrl: "https://via.placeholder.com/280x140/4A90E2/FFFFFF?text=OSRS+Update",
-                articleUrl: "https://oldschool.runescape.wiki/w/Update:Weekly_Game_Update"
-            ),
-            UpdateItem(
-                title: "Combat Achievements",
-                snippet: "New challenges for experienced players looking for additional goals",
-                imageUrl: "https://via.placeholder.com/280x140/7ED321/FFFFFF?text=Combat+Update",
-                articleUrl: "https://oldschool.runescape.wiki/w/Combat_Achievements"
-            ),
-            UpdateItem(
-                title: "Quality of Life Updates",
-                snippet: "Various improvements to game experience and user interface",
-                imageUrl: "https://via.placeholder.com/280x140/F5A623/FFFFFF?text=QoL+Update",
-                articleUrl: "https://oldschool.runescape.wiki/w/Quality_of_Life"
+                title: "Sample Update",
+                snippet: "Preview placeholder content for background generation",
+                imageUrl: "https://via.placeholder.com/280x140/4A90E2/FFFFFF?text=Preview",
+                articleUrl: "about:blank"
             )
         ]
         
         let fallbackAnnouncements = [
             AnnouncementItem(
                 date: "Recent",
-                content: "Check out the latest updates to Old School RuneScape"
+                content: "Preview placeholder announcement"
             )
         ]
         
         let fallbackPopular = [
-            PopularPageItem(title: "Grand Exchange", pageUrl: "https://oldschool.runescape.wiki/w/Grand_Exchange"),
-            PopularPageItem(title: "Varrock", pageUrl: "https://oldschool.runescape.wiki/w/Varrock"),
-            PopularPageItem(title: "Combat", pageUrl: "https://oldschool.runescape.wiki/w/Combat")
+            PopularPageItem(title: "Sample Page", pageUrl: "about:blank")
         ]
         
         let fallbackFeed = WikiFeed(

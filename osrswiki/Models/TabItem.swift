@@ -32,7 +32,7 @@ enum TabItem: String, CaseIterable {
     var iconName: String {
         switch self {
         case .news:
-            return "newspaper"
+            return "house"
         case .map:
             return "map"
         case .search:
@@ -47,7 +47,7 @@ enum TabItem: String, CaseIterable {
     var selectedIconName: String {
         switch self {
         case .news:
-            return "newspaper.fill"
+            return "house.fill"
         case .map:
             return "map.fill"
         case .search:

@@ -15,61 +15,90 @@ struct AppearanceSettingsView: View {
     @ObservedObject private var backgroundPreviewManager = osrsBackgroundPreviewManager.shared
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Theme selection cards (exactly like Android)
-                VStack(spacing: 16) {
-                    ForEach(osrsThemeSelection.allCases, id: \.self) { themeOption in
-                        osrsThemePreviewCard(
-                            theme: themeOption,
-                            isSelected: themeManager.selectedTheme == themeOption,
-                            onSelect: { themeManager.setTheme(themeOption) },
-                            previewRenderer: themePreviewRenderer
-                        )
-                    }
-                }
-                .padding(.horizontal, 16)
-                
-                // Collapse tables section (exactly like Android)
-                VStack(spacing: 0) {
-                    Text("Collapse tables")
-                        .font(.title2.weight(.medium))
-                        .foregroundStyle(.osrsPrimaryTextColor)
-                        .padding(.bottom, 16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    HStack(spacing: 16) {
-                        // Expanded preview
-                        osrsTablePreviewCard(
-                            title: "Expanded",
-                            subtitle: "Tables start expanded",
-                            isSelected: !themeManager.collapseTables,
-                            collapsed: false,
-                            onSelect: { themeManager.setCollapseTables(false) },
-                            tablePreviewRenderer: tablePreviewRenderer
-                        )
+        NavigationStack {
+            List {
+                Section {
+                    // Theme selection row
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Theme")
+                            .font(.body)
+                            .foregroundStyle(.osrsPrimaryTextColor)
                         
-                        // Collapsed preview (selected)
-                        osrsTablePreviewCard(
-                            title: "Collapsed",
-                            subtitle: "Tables start collapsed",
-                            isSelected: themeManager.collapseTables,
-                            collapsed: true,
-                            onSelect: { themeManager.setCollapseTables(true) },
-                            tablePreviewRenderer: tablePreviewRenderer
-                        )
+                        // Three cards horizontally arranged, right-aligned
+                        HStack(spacing: 8) {
+                            Spacer()
+                            
+                            osrsThemePreviewCard(
+                                theme: .osrsLight,
+                                isSelected: themeManager.selectedTheme == .osrsLight,
+                                onSelect: { themeManager.setTheme(.osrsLight) },
+                                previewRenderer: themePreviewRenderer
+                            )
+                            
+                            osrsThemePreviewCard(
+                                theme: .osrsDark,
+                                isSelected: themeManager.selectedTheme == .osrsDark,
+                                onSelect: { themeManager.setTheme(.osrsDark) },
+                                previewRenderer: themePreviewRenderer
+                            )
+                            
+                            osrsThemePreviewCard(
+                                theme: .automatic,
+                                isSelected: themeManager.selectedTheme == .automatic,
+                                onSelect: { themeManager.setTheme(.automatic) },
+                                previewRenderer: themePreviewRenderer
+                            )
+                        }
                     }
+                    .padding(.vertical, 8)
+                    .listRowBackground(Color(osrsTheme.surfaceVariant))
+                    
+                    // Table preferences row
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Tables")
+                            .font(.body)
+                            .foregroundStyle(.osrsPrimaryTextColor)
+                        
+                        HStack(spacing: 8) {
+                            Spacer()
+                            
+                            // Expanded preview
+                            osrsTablePreviewCard(
+                                title: "Expanded",
+                                subtitle: "",
+                                isSelected: !themeManager.collapseTables,
+                                collapsed: false,
+                                onSelect: { themeManager.setCollapseTables(false) },
+                                tablePreviewRenderer: tablePreviewRenderer
+                            )
+                            
+                            // Collapsed preview
+                            osrsTablePreviewCard(
+                                title: "Collapsed", 
+                                subtitle: "",
+                                isSelected: themeManager.collapseTables,
+                                collapsed: true,
+                                onSelect: { themeManager.setCollapseTables(true) },
+                                tablePreviewRenderer: tablePreviewRenderer
+                            )
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .listRowBackground(Color(osrsTheme.surfaceVariant))
                 }
-                .padding(.horizontal, 16)
-                
-                Spacer(minLength: 50)
+                .listSectionSeparator(.hidden)
             }
-            .padding(.top, 20)
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
         }
         .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)
         .background(.osrsBackground)
         .scrollContentBackground(.hidden)
+        // Force navigation bar to update with current theme
+        .toolbarBackground(.osrsSurface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(themeManager.currentColorScheme, for: .navigationBar)
     }
 }
 
@@ -86,75 +115,70 @@ struct osrsThemePreviewCard: View {
     
     var body: some View {
         Button(action: onSelect) {
-            VStack(spacing: 0) {
-                // Preview image area (actual rendered preview like Android)
-                Group {
+            VStack(spacing: 4) {
+                // Maximized preview image area - uses most of button space
+                ZStack(alignment: .center) {
+                    Color(osrsTheme.surfaceVariant)
+                    
                     if let previewImage = previewImage {
                         Image(uiImage: previewImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82, height: 120)
+                            .clipped()
                             .onAppear {
                                 print("🖼️ SHOWING GENERATED IMAGE for \(theme.rawValue) - size: \(previewImage.size)")
                             }
                     } else {
-                        // Loading placeholder - show background generation progress
-                        ZStack {
-                            Color(osrsTheme.surface)
-                            if backgroundPreviewManager.isGeneratingPreviews {
-                                VStack(spacing: 8) {
-                                    ProgressView(value: backgroundPreviewManager.generationProgress)
-                                        .progressViewStyle(LinearProgressViewStyle())
-                                        .frame(width: 80)
-                                    Text("Generating...")
-                                        .font(.caption2)
-                                        .foregroundStyle(.osrsPlaceholderColor)
-                                }
-                            } else {
-                                ProgressView()
-                                    .scaleEffect(0.5)
+                        // Loading placeholder
+                        if backgroundPreviewManager.isGeneratingPreviews {
+                            VStack(spacing: 4) {
+                                ProgressView(value: backgroundPreviewManager.generationProgress)
+                                    .progressViewStyle(LinearProgressViewStyle())
+                                    .tint(.osrsPrimaryColor)
+                                    .frame(width: 50)
+                                Text("Loading...")
+                                    .font(.caption2)
+                                    .foregroundStyle(.osrsPlaceholderColor)
                             }
-                        }
-                        .onAppear {
-                            print("🖼️ LOADING PLACEHOLDER for \(theme.rawValue) - background ready: \(backgroundPreviewManager.arePreviewsReady)")
+                        } else {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .tint(.osrsPrimaryColor)
+                                .scaleEffect(0.7)
                         }
                     }
                 }
-                .frame(height: 120)
-                .clipped()
+                .frame(width: 82, height: 120)
+                .background(Color(osrsTheme.surfaceVariant))
+                .cornerRadius(6)
                 
-                // Title and description area
-                VStack(spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(theme.displayName)
-                                .font(.headline)
-                                .foregroundStyle(.osrsPrimaryTextColor)
-                            
-                            Text(theme.description)
-                                .font(.caption)
-                                .foregroundStyle(.osrsSecondaryTextColor)
-                        }
-                        
-                        Spacer()
-                        
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.osrsPrimary)
-                                .font(.title2)
-                        }
-                    }
-                }
-                .padding(16)
-                .background(Color(osrsTheme.surface))
+                // Compact title - minimal space
+                Text(theme.displayName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.osrsPrimaryTextColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .frame(height: 14)
             }
+            .frame(width: 90)
+            .padding(.vertical, 8)
         }
         .buttonStyle(PlainButtonStyle())
-        .background(Color(osrsTheme.surface))
-        .cornerRadius(12)
+        .background(Color(osrsTheme.surfaceVariant))
+        .cornerRadius(8)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color(osrsTheme.primary) : Color(osrsTheme.outline), lineWidth: isSelected ? 2 : 1)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color(osrsTheme.primary) : Color.clear, lineWidth: 2)
         )
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.white, Color(osrsTheme.primary))
+                    .font(.system(size: 16))
+                    .offset(x: -6, y: 6)
+            }
+        }
         .onAppear {
             print("🖼️ ThemePreviewCard: onAppear called for \(theme.rawValue) - background ready: \(backgroundPreviewManager.arePreviewsReady)")
             
@@ -205,64 +229,70 @@ struct osrsTablePreviewCard: View {
     
     var body: some View {
         Button(action: onSelect) {
-            VStack(spacing: 0) {
-                // Table preview image (actual rendered table like Android)
-                Group {
+            VStack(spacing: 4) {
+                // Maximized table preview image - uses most of button space
+                ZStack(alignment: .center) {
+                    Color(osrsTheme.surfaceVariant)
+                    
                     if let previewImage = previewImage {
                         Image(uiImage: previewImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 82, height: 120)
+                            .clipped()
                             .onAppear {
                                 print("📊 SHOWING GENERATED TABLE IMAGE for \(collapsed ? "collapsed" : "expanded") - size: \(previewImage.size)")
                             }
                     } else {
-                        // Loading placeholder - show background generation progress
-                        ZStack {
-                            Color(osrsTheme.surface)
-                            if backgroundPreviewManager.isGeneratingPreviews {
-                                VStack(spacing: 8) {
-                                    ProgressView(value: backgroundPreviewManager.generationProgress)
-                                        .progressViewStyle(LinearProgressViewStyle())
-                                        .frame(width: 80)
-                                    Text("Generating...")
-                                        .font(.caption2)
-                                        .foregroundStyle(.osrsPlaceholderColor)
-                                }
-                            } else {
-                                ProgressView()
-                                    .scaleEffect(0.5)
+                        // Loading placeholder
+                        if backgroundPreviewManager.isGeneratingPreviews {
+                            VStack(spacing: 4) {
+                                ProgressView(value: backgroundPreviewManager.generationProgress)
+                                    .progressViewStyle(LinearProgressViewStyle())
+                                    .tint(.osrsPrimaryColor)
+                                    .frame(width: 50)
+                                Text("Loading...")
+                                    .font(.caption2)
+                                    .foregroundStyle(.osrsPlaceholderColor)
                             }
-                        }
-                        .onAppear {
-                            print("📊 LOADING TABLE PLACEHOLDER for \(collapsed ? "collapsed" : "expanded") - background ready: \(backgroundPreviewManager.arePreviewsReady)")
+                        } else {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .tint(.osrsPrimaryColor)
+                                .scaleEffect(0.7)
                         }
                     }
                 }
-                .frame(height: 100)
-                .clipped()
+                .frame(width: 82, height: 120)
+                .background(Color(osrsTheme.surfaceVariant))
+                .cornerRadius(6)
                 
-                // Title and subtitle
-                VStack(spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.osrsPrimaryTextColor)
-                    
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.osrsSecondaryTextColor)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(12)
-                .background(Color(osrsTheme.surface))
+                // Compact title - minimal space
+                Text(title)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.osrsPrimaryTextColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .frame(height: 14)
             }
+            .frame(width: 90)
+            .padding(.vertical, 8)
         }
         .buttonStyle(PlainButtonStyle())
-        .background(Color(osrsTheme.surface))
-        .cornerRadius(12)
+        .background(Color(osrsTheme.surfaceVariant))
+        .cornerRadius(8)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color(osrsTheme.primary) : Color(osrsTheme.outline), lineWidth: isSelected ? 2 : 1)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color(osrsTheme.primary) : Color.clear, lineWidth: 2)
         )
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.white, Color(osrsTheme.primary))
+                    .font(.system(size: 16))
+                    .offset(x: -6, y: 6)
+            }
+        }
         .onAppear {
             generateTablePreview()
         }

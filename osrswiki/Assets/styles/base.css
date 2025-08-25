@@ -31,7 +31,8 @@ body {
 a {
     color: var(--link-color);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: medium;
+    -webkit-text-stroke: 0.5px;
 }
 a:visited {
     color: var(--link-visited-color);

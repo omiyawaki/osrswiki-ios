@@ -17,8 +17,7 @@ class osrsTablePreviewRenderer: ObservableObject {
     // Singleton instance for shared cache
     static let shared = osrsTablePreviewRenderer()
     
-    // Preview dimensions - larger to show actual article content clearly
-    private static let targetPreviewSize: CGSize = CGSize(width: 280, height: 200)
+    // No fixed dimensions - return full device-sized renders
     
     // Cache for generated previews
     private var previewCache: [String: UIImage] = [:]
@@ -65,13 +64,18 @@ class osrsTablePreviewRenderer: ObservableObject {
         
         // Use REAL ArticleView pointing to actual Varrock Wikipedia page
         let varrockUrl = URL(string: "https://oldschool.runescape.wiki/w/Varrock")!
+        // Create a mock overlay manager for preview rendering
+        let mockOverlayManager = GlobalOverlayManager()
+        
         let realArticleView = ArticleView(pageTitle: "Varrock", pageUrl: varrockUrl, collapseTablesEnabled: collapsed)
             .environmentObject(appState)
             .environmentObject(themeManager)
             .environment(\.osrsTheme, theme)
+            .overlayManager(mockOverlayManager) // Provide mock overlay manager
         
         // Render real WebView content with proper async waiting (like Android)
-        return await renderRealWebViewWithWait(realArticleView, targetSize: Self.targetPreviewSize, collapsed: collapsed)
+        let deviceSize = await getDeviceContentSize()
+        return await renderRealWebViewWithWait(realArticleView, targetSize: deviceSize, collapsed: collapsed)
     }
     
     /// Render real WebView with proper async waiting for page load (like Android approach)
@@ -92,8 +96,13 @@ class osrsTablePreviewRenderer: ObservableObject {
     private func renderRealWebViewToImageWithWait(_ view: some View, size: CGSize, collapsed: Bool) async -> UIImage {
         return await withCheckedContinuation { continuation in
             DispatchQueue.main.async {
-                // Create hosting controller with real ArticleView
-                let controller = UIHostingController(rootView: view)
+                // Create hosting controller with view wrapped to ignore safe area
+                let wrappedView = view
+                    .ignoresSafeArea()
+                    .frame(width: size.width, height: size.height)
+                
+                let controller = UIHostingController(rootView: wrappedView)
+                controller.view.insetsLayoutMarginsFromSafeArea = false
                 
                 // Create a temporary window to provide proper view hierarchy
                 let window = UIWindow(frame: CGRect(origin: .zero, size: size))
@@ -109,48 +118,53 @@ class osrsTablePreviewRenderer: ObservableObject {
                 controller.view.layoutIfNeeded()
                 
                 // Wait longer for WebView to load real Varrock content AND execute JavaScript table collapse
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self, weak controller, weak window] in
+                    // Check if view controller is still valid (not deallocated during navigation)
+                    guard let controller = controller, controller.view.window != nil else {
+                        print("⚠️ TablePreviewRenderer: Controller deallocated, cancelling render")
+                        continuation.resume(returning: UIImage())
+                        return
+                    }
+                    
                     // Force JavaScript execution to ensure table state is correct
-                    self.forceTableStateInWebView(controller: controller, collapsed: collapsed)
+                    self?.forceTableStateInWebView(controller: controller, collapsed: collapsed)
                     
                     // Additional layout after WebView content loads
                     controller.view.setNeedsLayout()
                     controller.view.layoutIfNeeded()
                     
-                    // Render to image
-                    let renderer = UIGraphicsImageRenderer(size: size)
+                    // Get the actual content area (excluding safe area)
+                    let safeAreaTop = controller.view.safeAreaInsets.top
+                    let contentHeight = size.height - safeAreaTop
+                    let contentSize = CGSize(width: size.width, height: contentHeight)
+                    
+                    // Render to image, cropping out the top safe area
+                    let renderer = UIGraphicsImageRenderer(size: contentSize)
                     let image = renderer.image { context in
                         // Set clear background
-                        context.cgContext.clear(CGRect(origin: .zero, size: size))
+                        context.cgContext.clear(CGRect(origin: .zero, size: contentSize))
+                        
+                        // Translate to skip the safe area at top
+                        context.cgContext.translateBy(x: 0, y: -safeAreaTop)
                         
                         // Render the real WebView
                         controller.view.layer.render(in: context.cgContext)
                     }
                     
                     // Clean up
-                    window.isHidden = true
-                    window.rootViewController = nil
+                    if let window = window {
+                        window.isHidden = true
+                        window.rootViewController = nil
+                    }
                     
-                    print("📊 Rendered REAL WebView image size: \(image.size), scale: \(image.scale)")
+                    print("📊 Rendered REAL WebView image size: \(image.size), cropped \(safeAreaTop)pt from top")
                     continuation.resume(returning: image)
                 }
             }
         }
     }
     
-    /// Render view at device size then scale down (like Android approach)
-    private func renderViewAtDeviceSizeThenScale(_ view: some View, targetSize: CGSize) async -> UIImage {
-        // Get device screen bounds (like Android getAppContentBounds)
-        let deviceSize = await getDeviceContentSize()
-        
-        print("📊 Rendering article at device size: \(deviceSize), then scaling to: \(targetSize)")
-        
-        // First render at full device size
-        let deviceImage = await renderViewToImage(view, size: deviceSize)
-        
-        // Then scale down to target preview size
-        return scaleImageToTargetSize(deviceImage, targetSize: targetSize)
-    }
+    // Removed renderViewAtDeviceSizeThenScale - no longer needed
     
     /// Get device content size (excluding system UI like Android)
     private func getDeviceContentSize() async -> CGSize {
@@ -182,29 +196,28 @@ class osrsTablePreviewRenderer: ObservableObject {
     /// Scale image to target size maintaining aspect ratio
     private func scaleImageToTargetSize(_ sourceImage: UIImage, targetSize: CGSize) -> UIImage {
         let sourceSize = sourceImage.size
+        
+        // Scale to FILL the target size (use max to ensure no letterboxing)
         let scaleX = targetSize.width / sourceSize.width
         let scaleY = targetSize.height / sourceSize.height
-        let scale = min(scaleX, scaleY) // Maintain aspect ratio
+        let scale = max(scaleX, scaleY) // Use max to fill completely
         
-        let scaledSize = CGSize(
-            width: sourceSize.width * scale,
-            height: sourceSize.height * scale
-        )
+        let scaledWidth = sourceSize.width * scale
+        let scaledHeight = sourceSize.height * scale
         
-        print("📊 Scaling from \(sourceSize) to \(scaledSize) (target: \(targetSize))")
+        print("📊 FILL scaling from \(sourceSize) to \(scaledWidth)x\(scaledHeight) (target: \(targetSize))")
         
         let renderer = UIGraphicsImageRenderer(size: targetSize)
         return renderer.image { context in
-            // Center the scaled image in the target size
-            let x = (targetSize.width - scaledSize.width) / 2
-            let y = (targetSize.height - scaledSize.height) / 2
-            let drawRect = CGRect(x: x, y: y, width: scaledSize.width, height: scaledSize.height)
+            // Center the scaled image and crop excess
+            let x = (targetSize.width - scaledWidth) / 2
+            let y = (targetSize.height - scaledHeight) / 2
+            let drawRect = CGRect(x: x, y: y, width: scaledWidth, height: scaledHeight)
             
-            // Fill background (in case of letterboxing)
-            UIColor.clear.setFill()
-            context.fill(CGRect(origin: .zero, size: targetSize))
+            // Set clipping to target size
+            context.cgContext.clip(to: CGRect(origin: .zero, size: targetSize))
             
-            // Draw scaled image
+            // Draw the scaled image centered
             sourceImage.draw(in: drawRect)
         }
     }
@@ -214,8 +227,13 @@ class osrsTablePreviewRenderer: ObservableObject {
     private func renderViewToImage(_ view: some View, size: CGSize) async -> UIImage {
         return await withCheckedContinuation { continuation in
             DispatchQueue.main.async {
-                // Create hosting controller
-                let controller = UIHostingController(rootView: view)
+                // Create hosting controller with view wrapped to ignore safe area
+                let wrappedView = view
+                    .ignoresSafeArea()
+                    .frame(width: size.width, height: size.height)
+                
+                let controller = UIHostingController(rootView: wrappedView)
+                controller.view.insetsLayoutMarginsFromSafeArea = false
                 
                 // Create a temporary window to provide proper view hierarchy
                 let window = UIWindow(frame: CGRect(origin: .zero, size: size))
@@ -232,11 +250,19 @@ class osrsTablePreviewRenderer: ObservableObject {
                 
                 // Wait for next run loop to ensure layout is complete
                 DispatchQueue.main.async {
-                    // Render to image
-                    let renderer = UIGraphicsImageRenderer(size: size)
+                    // Get the actual content area
+                    let safeAreaTop = controller.view.safeAreaInsets.top
+                    let contentHeight = size.height - safeAreaTop
+                    let contentSize = CGSize(width: size.width, height: contentHeight)
+                    
+                    // Render to image, cropping out the top safe area
+                    let renderer = UIGraphicsImageRenderer(size: contentSize)
                     let image = renderer.image { context in
                         // Set clear background
-                        context.cgContext.clear(CGRect(origin: .zero, size: size))
+                        context.cgContext.clear(CGRect(origin: .zero, size: contentSize))
+                        
+                        // Translate to skip the safe area at top
+                        context.cgContext.translateBy(x: 0, y: -safeAreaTop)
                         
                         // Render the view
                         controller.view.layer.render(in: context.cgContext)
@@ -246,7 +272,7 @@ class osrsTablePreviewRenderer: ObservableObject {
                     window.isHidden = true
                     window.rootViewController = nil
                     
-                    print("📊 Rendered table image size: \(image.size), scale: \(image.scale)")
+                    print("📊 Rendered table image size: \(image.size), cropped \(safeAreaTop)pt from top")
                     continuation.resume(returning: image)
                 }
             }
@@ -255,7 +281,7 @@ class osrsTablePreviewRenderer: ObservableObject {
     
     /// Generate fallback image when WebView rendering fails
     private func generateFallbackTableImage(collapsed: Bool, theme: any osrsThemeProtocol) -> UIImage {
-        let size = Self.targetPreviewSize
+        let size = CGSize(width: 300, height: 200) // Fallback size
         let renderer = UIGraphicsImageRenderer(size: size)
         
         return renderer.image { context in

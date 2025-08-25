@@ -100,11 +100,11 @@ struct osrsArticleBottomBar: View {
     private var saveButtonTintColor: Color {
         switch saveState {
         case .notSaved:
-            return osrsTheme.secondaryTextColor
+            return osrsTheme.placeholderColor
         case .downloading:
-            return osrsTheme.secondaryTextColor.opacity(0.4)
+            return osrsTheme.placeholderColor.opacity(0.4)
         case .saved:
-            return .yellow
+            return osrsTheme.primaryTextColor
         case .error:
             return .red
         }
@@ -158,7 +158,7 @@ struct osrsBottomBarButton: View {
         if let tintColor = tintColor {
             return isEnabled ? tintColor : tintColor.opacity(0.4)
         }
-        return isEnabled ? osrsTheme.secondaryTextColor : osrsTheme.secondaryTextColor.opacity(0.4)
+        return isEnabled ? osrsTheme.placeholderColor : osrsTheme.placeholderColor.opacity(0.4)
     }
 }
 

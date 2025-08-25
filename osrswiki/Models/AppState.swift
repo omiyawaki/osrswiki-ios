@@ -14,6 +14,11 @@ class AppState: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
+    // Task cancellation management
+    private var activeTabTasks: Set<Task<Void, Never>> = []
+    private var tabSwitchDebouncer: Task<Void, Never>?
+    private let tabSwitchDelay: TimeInterval = 0.1 // Debounce rapid tab switches
+    
     // Navigation state - separate navigation paths for each tab
     @Published var newsNavigationPath = NavigationPath()
     @Published var savedNavigationPath = NavigationPath()
@@ -70,8 +75,47 @@ class AppState: ObservableObject {
     }
     
     func setSelectedTab(_ tab: TabItem) {
-        selectedTab = tab
-        saveUserPreferences()
+        // Cancel any pending tab switch
+        tabSwitchDebouncer?.cancel()
+        
+        // Debounce rapid tab switches to prevent crashes
+        tabSwitchDebouncer = Task { @MainActor in
+            // Small delay to debounce rapid switches
+            try? await Task.sleep(nanoseconds: UInt64(tabSwitchDelay * 1_000_000_000))
+            
+            guard !Task.isCancelled else { return }
+            
+            // Cancel all active tasks from previous tab
+            cancelActiveTabTasks()
+            
+            // Actually switch the tab
+            selectedTab = tab
+            saveUserPreferences()
+            
+            // Post notification for views to cancel their operations
+            NotificationCenter.default.post(name: Notification.Name("TabSwitched"), object: tab)
+        }
+    }
+    
+    func cancelActiveTabTasks() {
+        // Cancel all tracked tasks
+        for task in activeTabTasks {
+            task.cancel()
+        }
+        activeTabTasks.removeAll()
+        
+        // Post cancellation notification
+        NotificationCenter.default.post(name: Notification.Name("CancelTabOperations"), object: nil)
+    }
+    
+    func trackTask(_ task: Task<Void, Never>) {
+        activeTabTasks.insert(task)
+        
+        // Remove task when completed
+        Task { @MainActor in
+            await task.value
+            activeTabTasks.remove(task)
+        }
     }
     
     func showError(_ message: String) {
@@ -109,6 +153,12 @@ class AppState: ObservableObject {
         appendToCurrentNavigationPath(NavigationDestination.article(destination))
     }
     
+    // Rich navigation with metadata (for search results and enhanced history)
+    func navigateToArticle(title: String, url: URL, snippet: String?, thumbnailUrl: URL?) {
+        let destination = ArticleDestination(title: title, url: url, snippet: snippet, thumbnailUrl: thumbnailUrl)
+        appendToCurrentNavigationPath(NavigationDestination.article(destination))
+    }
+    
     // URL-only navigation (like Android) - extracts title from URL
     func navigateToArticle(url: URL) {
         let destination = ArticleDestination(title: nil, url: url)
@@ -117,7 +167,14 @@ class AppState: ObservableObject {
     
     // Navigate to search
     func navigateToSearch() {
+        PerformanceTimer.shared.start("navigateToSearch")
         appendToCurrentNavigationPath(NavigationDestination.search)
+        _ = PerformanceTimer.shared.end("navigateToSearch")
+    }
+    
+    // Check if currently viewing an article (has navigation depth > 0)
+    var isInArticle: Bool {
+        return !currentNavigationPath.wrappedValue.isEmpty
     }
     
     // Navigate back
@@ -194,9 +251,20 @@ enum NavigationDestination: Hashable {
 struct ArticleDestination: Hashable {
     let title: String?  // Optional - will be extracted from URL if nil
     let url: URL
+    let snippet: String?  // Optional - for rich history display
+    let thumbnailUrl: URL?  // Optional - for rich history display
+    
+    init(title: String?, url: URL, snippet: String? = nil, thumbnailUrl: URL? = nil) {
+        self.title = title
+        self.url = url
+        self.snippet = snippet
+        self.thumbnailUrl = thumbnailUrl
+    }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(title)
         hasher.combine(url)
+        hasher.combine(snippet)
+        hasher.combine(thumbnailUrl)
     }
 }

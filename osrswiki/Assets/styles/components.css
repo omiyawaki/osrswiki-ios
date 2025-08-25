@@ -2,7 +2,14 @@
 
 .scrollable-table-wrapper {
     overflow-x: auto;
+    overflow-y: hidden;
     margin-bottom: 1em;
+    /* WebKit-specific scrolling improvements */
+    -webkit-overflow-scrolling: touch;
+    /* Ensure wrapper doesn't exceed container width */
+    max-width: 100%;
+    /* Create scrolling context */
+    width: 100%;
 }
 .scrollable-table-wrapper > table.wikitable {
     width: auto; /* Allow table to expand to its natural content width */

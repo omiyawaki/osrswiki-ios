@@ -9,58 +9,74 @@ import SwiftUI
 
 struct MainTabView: View {
     @StateObject private var appState = AppState()
-    @StateObject private var themeManager = osrsThemeManager()
+    @EnvironmentObject var themeManager: osrsThemeManager
     @State private var hasStartedBackgroundGeneration = false
     
     var body: some View {
         TabView(selection: $appState.selectedTab) {
-            newsTab
-            savedTab
-            searchTab
-            mapTab
-            moreTab
+            Group {
+                newsTab
+                savedTab
+                searchTab
+                mapTab
+                moreTab
+            }
+            .toolbarBackground(Color(themeManager.currentTheme.surface), for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
         }
+        .tint(Color(themeManager.currentTheme.primaryTextColor)) // Selected color
+        .accentColor(Color(themeManager.currentTheme.bottomNavInactiveColor)) // Unselected color
         .environmentObject(appState)
-        .environmentObject(themeManager)
+        // Note: themeManager is now injected at app level in osrswikiApp.swift
         .environment(\.osrsTheme, themeManager.currentTheme)
-        .preferredColorScheme(themeManager.currentColorScheme)
+        .preferredColorScheme(.light)  // TDD: Force light mode for testing
         .onAppear {
-            // Additional tab bar styling for iOS 18+ compatibility
-            configureTabBarAppearance()
-        }
-        .onChange(of: themeManager.currentTheme.surface) { _, _ in
-            // Update tab bar when theme changes
-            DispatchQueue.main.async {
-                configureTabBarAppearance()
-            }
-        }
-        .onChange(of: themeManager.currentColorScheme) { _, _ in
-            // Update tab bar when color scheme changes
-            DispatchQueue.main.async {
-                configureTabBarAppearance()
-            }
-        }
-        .onChange(of: themeManager.currentTheme.primaryTextColor) { _, _ in
-            // Update tab bar when primary text color changes (for tab icon/text colors)
-            DispatchQueue.main.async {
-                configureTabBarAppearance()
+            // TDD: Force light theme for testing
+            themeManager.setTheme(.osrsLight)
+            
+            // DEBUG: Extract actual colors for testing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                ColorExtractor.exportColorsToJSON(themeManager: themeManager)
             }
         }
         .onChange(of: appState.selectedTab) { _, newTab in
             appState.setSelectedTab(newTab)
         }
+        // Add horizontal gesture support for tab navigation  
+        .osrsHorizontalGestures(
+            isEnabled: !appState.isInArticle, // Only enable when not in article (ArticleView handles its own gestures)
+            onBackGesture: {
+                // Back gesture in main interface - no action (iOS doesn't have system back in main tabs)
+                print("[MainTabView] Back gesture ignored in main interface")
+            },
+            onSidebarGesture: {
+                // Left swipe in main interface - could open a settings panel or search
+                // For now, just switch to search tab as a logical action
+                print("[MainTabView] Sidebar gesture - switching to search tab")
+                appState.setSelectedTab(.search)
+            }
+        )
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             // Update system color scheme when app becomes active
             let currentSystemScheme: ColorScheme = UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
             themeManager.updateSystemColorScheme(currentSystemScheme)
         }
         .onAppear {
-            // Start background preview generation only once after main interface is loaded
+            // Start background tasks only once after main interface is loaded
+            // PRIORITY: MapLibre preloading (essential for map performance)
             if !hasStartedBackgroundGeneration {
                 hasStartedBackgroundGeneration = true
-                print("🔄 Main interface loaded - starting background preview generation...")
+                print("🔄 Main interface loaded - starting essential background tasks...")
                 Task { @MainActor in
-                    await osrsBackgroundPreviewManager.shared.preGenerateAllPreviews()
+                    // 🗺️ ESSENTIAL: Map preloading (eliminates pixelated loading)
+                    print("🚀 PRIORITY: Starting MapLibre background preloading...")
+                    await osrsBackgroundMapPreloader.shared.preloadMapInBackground()
+                    
+                    // DISABLED: Background preview generation to prevent automatic Varrock ArticleView creation
+                    // This was causing unwanted entries in history during app startup
+                    // TODO: Re-enable with option to exclude from history tracking
+                    print("🚀 Background preview generation disabled to prevent history contamination")
+                    // await osrsBackgroundPreviewManager.shared.preGenerateAllPreviews()
                 }
             }
         }
@@ -75,143 +91,89 @@ struct MainTabView: View {
         }
     }
     
-    // MARK: - Tab Bar Configuration
+    // MARK: - Manual Tab Color Management (iOS 18 Compatible)
     
-    private func configureTabBarAppearance() {
-        print("🎨 [TAB BAR] Configuring tab bar appearance with theme: \(themeManager.currentTheme is osrsLightTheme ? "Light" : "Dark")")
-        
-        let tabBarAppearance = UITabBarAppearance()
-        
-        // Configure background
-        tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor = UIColor(themeManager.currentTheme.surface)
-        
-        print("🎨 [TAB BAR] Surface color: \(UIColor(themeManager.currentTheme.surface))")
-        
-        // Configure item colors using Apple's recommended alpha-based approach
-        // Use single base color with different alpha values for active/inactive states
-        let baseTabColor = UIColor(themeManager.currentTheme.primaryTextColor)
-        
-        print("🎨 [TAB BAR] Base text color: \(baseTabColor)")
-        
-        // Inactive tabs: Same color with 40% opacity (following iOS native patterns)
-        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = baseTabColor.withAlphaComponent(0.4)
-        tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-            .foregroundColor: baseTabColor.withAlphaComponent(0.4)
-        ]
-        
-        // Active tabs: Full opacity base color
-        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = baseTabColor
-        tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-            .foregroundColor: baseTabColor
-        ]
-        
-        // Also configure compact layout for landscape mode
-        tabBarAppearance.compactInlineLayoutAppearance.normal.iconColor = baseTabColor.withAlphaComponent(0.4)
-        tabBarAppearance.compactInlineLayoutAppearance.normal.titleTextAttributes = [
-            .foregroundColor: baseTabColor.withAlphaComponent(0.4)
-        ]
-        tabBarAppearance.compactInlineLayoutAppearance.selected.iconColor = baseTabColor
-        tabBarAppearance.compactInlineLayoutAppearance.selected.titleTextAttributes = [
-            .foregroundColor: baseTabColor
-        ]
-        
-        // Apply appearance globally first
-        UITabBar.appearance().standardAppearance = tabBarAppearance
-        UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
-        
-        // Force refresh with more aggressive approach
-        DispatchQueue.main.async { [tabBarAppearance] in
-            // Force update on all current tab bars
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                for window in windowScene.windows {
-                    self.updateTabBarsInView(window.rootViewController?.view)
-                }
-            }
-        }
-        
-        print("🎨 [TAB BAR] Tab bar appearance configuration completed")
-    }
-    
-    private func updateTabBarsInView(_ view: UIView?) {
-        guard let view = view else { return }
-        
-        if let tabBar = view as? UITabBar {
-            tabBar.standardAppearance = UITabBar.appearance().standardAppearance
-            tabBar.scrollEdgeAppearance = UITabBar.appearance().scrollEdgeAppearance
-            tabBar.setNeedsLayout()
-            tabBar.layoutIfNeeded()
-            print("🎨 [TAB BAR] Force updated tab bar: \(tabBar)")
-        }
-        
-        for subview in view.subviews {
-            updateTabBarsInView(subview)
-        }
-    }
     
     // MARK: - Tab Views
     
     private var newsTab: some View {
-        NewsView()
-            .tabItem {
-                Image(systemName: appState.selectedTab == .news ? 
-                      TabItem.news.selectedIconName : TabItem.news.iconName)
-                Text(TabItem.news.title)
-            }
-            .tag(TabItem.news)
-            .accessibilityLabel(TabItem.news.accessibilityLabel)
-            .accessibilityIdentifier("home_tab")
+        NavigationStack {
+            NewsView()
+        }
+        .tabItem {
+            Image(systemName: appState.selectedTab == .news ? 
+                  TabItem.news.selectedIconName : TabItem.news.iconName)
+                .renderingMode(.template)
+            Text(TabItem.news.title)
+        }
+        .tag(TabItem.news)
+        .accessibilityLabel(TabItem.news.accessibilityLabel)
+        .accessibilityIdentifier("home_tab")
     }
     
     private var savedTab: some View {
-        SavedPagesView()
-            .tabItem {
-                Image(systemName: appState.selectedTab == .saved ? 
-                      TabItem.saved.selectedIconName : TabItem.saved.iconName)
-                Text(TabItem.saved.title)
-            }
-            .tag(TabItem.saved)
-            .accessibilityLabel(TabItem.saved.accessibilityLabel)
-            .accessibilityIdentifier("saved_tab")
+        NavigationStack {
+            SavedPagesView()
+        }
+        .tabItem {
+            Image(systemName: appState.selectedTab == .saved ? 
+                  TabItem.saved.selectedIconName : TabItem.saved.iconName)
+                .renderingMode(.template)
+            Text(TabItem.saved.title)
+        }
+        .tag(TabItem.saved)
+        .accessibilityLabel(TabItem.saved.accessibilityLabel)
+        .accessibilityIdentifier("saved_tab")
     }
     
     private var searchTab: some View {
-        HistoryView()
-            .tabItem {
-                Image(systemName: appState.selectedTab == .search ? 
-                      TabItem.search.selectedIconName : TabItem.search.iconName)
-                Text(TabItem.search.title)
-            }
-            .tag(TabItem.search)
-            .accessibilityLabel(TabItem.search.accessibilityLabel)
-            .accessibilityIdentifier("search_tab")
+        NavigationStack {
+            HistoryView()
+        }
+        .tabItem {
+            Image(systemName: appState.selectedTab == .search ? 
+                  TabItem.search.selectedIconName : TabItem.search.iconName)
+                .renderingMode(.template)
+            Text(TabItem.search.title)
+        }
+        .tag(TabItem.search)
+        .accessibilityLabel(TabItem.search.accessibilityLabel)
+        .accessibilityIdentifier("search_tab")
     }
     
     private var mapTab: some View {
-        MapView()
-            .tabItem {
-                Image(systemName: appState.selectedTab == .map ? 
-                      TabItem.map.selectedIconName : TabItem.map.iconName)
-                Text(TabItem.map.title)
-            }
-            .tag(TabItem.map)
-            .accessibilityLabel(TabItem.map.accessibilityLabel)
-            .accessibilityIdentifier("map_tab")
+        NavigationStack {
+            MapView()
+        }
+        .tabItem {
+            Image(systemName: appState.selectedTab == .map ? 
+                  TabItem.map.selectedIconName : TabItem.map.iconName)
+                .renderingMode(.template)
+            Text(TabItem.map.title)
+        }
+        .tag(TabItem.map)
+        .accessibilityLabel(TabItem.map.accessibilityLabel)
+        .accessibilityIdentifier("map_tab")
     }
     
     private var moreTab: some View {
-        MoreView()
-            .tabItem {
-                Image(systemName: appState.selectedTab == .more ? 
-                      TabItem.more.selectedIconName : TabItem.more.iconName)
-                Text(TabItem.more.title)
-            }
-            .tag(TabItem.more)
-            .accessibilityLabel(TabItem.more.accessibilityLabel)
-            .accessibilityIdentifier("more_tab")
+        NavigationStack {
+            MoreView()
+        }
+        .tabItem {
+            Image(systemName: appState.selectedTab == .more ? 
+                  TabItem.more.selectedIconName : TabItem.more.iconName)
+                .renderingMode(.template)
+            Text(TabItem.more.title)
+        }
+        .tag(TabItem.more)
+        .accessibilityLabel(TabItem.more.accessibilityLabel)
+        .accessibilityIdentifier("more_tab")
     }
 }
 
 #Preview {
     MainTabView()
+        .environmentObject(osrsThemeManager.preview)
 }
+

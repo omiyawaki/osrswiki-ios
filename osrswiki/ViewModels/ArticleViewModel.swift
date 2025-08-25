@@ -10,6 +10,15 @@ import SwiftUI
 import WebKit
 import Combine
 
+// TIMELINE LOGGING: Precise timestamp formatter for tracking loading phases
+extension DateFormatter {
+    static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
+}
+
 // MARK: - Notification Names
 extension Notification.Name {
     static let showAppearanceSettings = Notification.Name("showAppearanceSettings")
@@ -48,6 +57,7 @@ enum osrsArticleBottomBarSaveState {
 class ArticleViewModel: NSObject, ObservableObject {
     @Published var isLoading: Bool = false
     @Published var loadingProgress: Double = 0.0
+    @Published var loadingProgressText: String? = nil
     @Published var errorMessage: String?
     @Published var pageTitle: String = ""
     @Published var isBookmarked: Bool = false
@@ -62,18 +72,28 @@ class ArticleViewModel: NSObject, ObservableObject {
     let pageTitle_: String?
     let pageId: Int?
     let collapseTablesEnabled: Bool
+    let snippet_: String?  // Metadata for rich history display
+    let thumbnailUrl_: URL?  // Metadata for rich history display
     
     weak var webView: WKWebView?
     private var cancellables = Set<AnyCancellable>()
     private var progressObserver: NSKeyValueObservation?
     private let contentLoader = osrsPageContentLoader()
     private let savedPagesRepository = SavedPagesRepository()
+    private let historyRepository = HistoryRepository()
     
-    init(pageUrl: URL, pageTitle: String? = nil, pageId: Int? = nil, collapseTablesEnabled: Bool = true) {
+    // TIMING MEASUREMENT: Track progress completion vs page visibility delay
+    var progressCompletionTime: Date?
+    private var pageVisibilityTime: Date?
+    @Published var lastMeasuredDelay: TimeInterval? = nil
+    
+    init(pageUrl: URL, pageTitle: String? = nil, pageId: Int? = nil, snippet: String? = nil, thumbnailUrl: URL? = nil, collapseTablesEnabled: Bool = true) {
         self.pageUrl = pageUrl
         self.pageTitle_ = pageTitle
         self.pageId = pageId
         self.collapseTablesEnabled = collapseTablesEnabled
+        self.snippet_ = snippet
+        self.thumbnailUrl_ = thumbnailUrl
         super.init()
     }
     
@@ -86,12 +106,62 @@ class ArticleViewModel: NSObject, ObservableObject {
     private func setupWebViewObservers() {
         guard let webView = webView else { return }
         
-        // Observe loading progress
+        // Smart progress mapping - embed WebKit's automatic progress into total progress phases
+        // This matches Android's approach: map WebView 0-100% to appropriate phase ranges
         progressObserver = webView.observe(\.estimatedProgress, options: .new) { [weak self] webView, _ in
             DispatchQueue.main.async {
-                self?.loadingProgress = webView.estimatedProgress
-                self?.isLoading = webView.estimatedProgress < 1.0
+                self?.updateProgressFromWebKit(webView.estimatedProgress)
             }
+        }
+    }
+    
+    // Smart progress mapping matching Android's implementation  
+    private func updateProgressFromWebKit(_ webKitProgress: Double) {
+        let webKitPercent = Int(webKitProgress * 100)
+        let timestamp = Date()
+        let timeString = DateFormatter.timeFormatter.string(from: timestamp)
+        
+        if isLoading {
+            // Map WebKit progress to appropriate phase based on current loading stage
+            let mappedProgress: Double
+            let progressText: String
+            
+            if webKitPercent < 10 {
+                // Initial loading phase: 0-10% WebKit -> 5-15% total
+                mappedProgress = 0.05 + (webKitProgress * 0.1)
+                progressText = "Starting download..."
+            } else if webKitPercent < 50 {
+                // Content fetching phase: 10-50% WebKit -> 15-50% total  
+                mappedProgress = 0.15 + ((webKitProgress - 0.1) * 0.875) // 0.875 = (0.5-0.15)/(0.5-0.1)
+                progressText = "Downloading content..."
+            } else if webKitPercent < 95 {
+                // Rendering phase: 50-95% WebKit -> 50-95% total
+                mappedProgress = 0.5 + ((webKitProgress - 0.5) * 1.0) 
+                progressText = "Rendering page..."
+            } else {
+                // ANDROID PARITY: Cap at 95% until JavaScript signals content ready
+                mappedProgress = 0.95
+                progressText = "Finalizing content..."
+            }
+            
+            self.loadingProgress = mappedProgress
+            self.loadingProgressText = progressText
+            
+            // ANDROID PARITY: Don't complete on WebKit 100% - wait for JavaScript signal
+            if webKitProgress >= 1.0 {
+                // TIMING MEASUREMENT: Record when WebKit completes (not final completion)
+                self.progressCompletionTime = timestamp
+                print("📊 [\(timeString)] 🔴 WEBKIT COMPLETE: WebKit reached 100%, waiting for JavaScript content readiness...")
+                
+                // Progress stays at 95% and loading continues until "StylingScriptsComplete"
+                self.loadingProgress = 0.95
+                self.loadingProgressText = "Finalizing content..."
+                self.isLoading = true
+            } else {
+                self.isLoading = true
+            }
+            
+            print("📊 [\(timeString)] Progress mapping: WebKit \(Int(webKitProgress * 100))% -> Total \(Int(mappedProgress * 100))% (\(progressText))")
         }
     }
     
@@ -103,10 +173,16 @@ class ArticleViewModel: NSObject, ObservableObject {
         
         isLoading = true
         errorMessage = nil
-        loadingProgress = 0.05
         
-        print("🔗 ArticleViewModel: Loading article with custom HTML building")
-        print("🔗 ArticleViewModel: pageUrl=\(pageUrl), pageTitle_=\(pageTitle_ ?? "nil"), pageId=\(pageId?.description ?? "nil")")
+        // TIMING MEASUREMENT: Reset timing measurements for new page load
+        progressCompletionTime = nil
+        pageVisibilityTime = nil
+        
+        // Initial progress will be set by WebKit observer
+        
+        let timeString = DateFormatter.timeFormatter.string(from: Date())
+        print("📊 [\(timeString)] 🚀 LOADING STARTED: Beginning article load process")
+        print("📊 [\(timeString)] 📋 LOAD PARAMS: pageUrl=\(pageUrl), pageTitle=\(pageTitle_ ?? "nil"), pageId=\(pageId?.description ?? "nil")")
         
         // Debug: Print raw title hex bytes to detect encoding issues
         if let rawTitle = pageTitle_ {
@@ -146,10 +222,7 @@ class ArticleViewModel: NSObject, ObservableObject {
             do {
                 print("🔄 ArticleViewModel: Starting direct content loading...")
                 
-                // Update progress
-                await MainActor.run {
-                    self.loadingProgress = 0.1
-                }
+                // Progress will be updated automatically by WebKit observer
                 
                 // CRITICAL FIX: Extract page name from URL, convert underscores to spaces
                 // MediaWiki API expects display title (spaces), not URL path (underscores)
@@ -186,17 +259,11 @@ class ArticleViewModel: NSObject, ObservableObject {
                 print("🌐 ArticleViewModel: Extracted page title: '\(pageTitle)'")
                 print("🌐 ArticleViewModel: URLComponents URL: '\(url.absoluteString)'")
                 
-                // Update progress
-                await MainActor.run {
-                    self.loadingProgress = 0.3
-                }
+                // Progress updated automatically by WebKit observer
                 
                 let (data, _) = try await URLSession.shared.data(from: url)
                 
-                // Update progress
-                await MainActor.run {
-                    self.loadingProgress = 0.5
-                }
+                // Progress updated automatically by WebKit observer
                 
                 // Parse JSON manually to handle the nested structure
                 print("📊 ArticleViewModel: Received data: \(data.count) bytes")
@@ -235,10 +302,7 @@ class ArticleViewModel: NSObject, ObservableObject {
                 
                 print("✅ ArticleViewModel: Got content - Title: '\(title)', Length: \(htmlContent.count)")
                 
-                // Update progress
-                await MainActor.run {
-                    self.loadingProgress = 0.7
-                }
+                // Progress updated automatically by WebKit observer
                 
                 // Process the HTML to remove unwanted sections (matching Android behavior)
                 let processedHtml = removeUnwantedInfoboxSections(from: htmlContent)
@@ -284,7 +348,6 @@ class ArticleViewModel: NSObject, ObservableObject {
                 
                 // Load in WebView on main thread
                 await MainActor.run {
-                    self.loadingProgress = 0.9
                     self.pageTitle = displaytitle ?? title
                     self.loadCustomHtml(finalHtml, theme: theme)
                     
@@ -358,7 +421,7 @@ class ArticleViewModel: NSObject, ObservableObject {
             
         case .success(let pageContent):
             print("✅ ArticleViewModel: Successfully loaded page content")
-            loadingProgress = 0.50
+            // Progress updated automatically by WebKit observer
             
             // Build the final HTML document
             let finalHtml = contentLoader.buildFullHtmlDocument(
@@ -388,6 +451,19 @@ class ArticleViewModel: NSObject, ObservableObject {
         print("🌐 ArticleViewModel: Loading custom HTML in WebView")
         print("🌐 ArticleViewModel: HTML content length: \(html.count) characters")
         
+        // PRELOADING INTEGRATION: Trigger map preloading before WebView loads HTML
+        // This mirrors Android's proactive preloading approach
+        Task { @MainActor in
+            // Set parent view for map preloading containers
+            if let parentView = webView.superview {
+                osrsMapPreloadService.shared.setParentView(parentView)
+            }
+            
+            // Parse HTML for maps and start preloading
+            print("🗺️ ArticleViewModel: Starting map preloading from HTML")
+            osrsMapPreloadService.shared.preloadMapsFromHTML(html)
+        }
+        
         // Keep wiki base URL for content
         // CRITICAL FIX: Use custom scheme baseURL to avoid mixed content security blocking
         // WebKit treats custom schemes as insecure and blocks them when baseURL is HTTPS
@@ -406,13 +482,35 @@ class ArticleViewModel: NSObject, ObservableObject {
             print("🌐 ArticleViewModel: Revealing body and completing load...")
             self.revealBody(webView: webView)
             
-            // Complete the loading process
+            // Complete the loading process - maintain timing measurement but add history tracking
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.isLoading = false
                 self.loadingProgress = 1.0
+                self.progressCompletionTime = Date() // Record progress completion for timing measurement
                 print("✅ ArticleViewModel: Loading completed!")
+                
+                // Track this page visit in history
+                self.addToHistory()
             }
         }
+    }
+    
+    // MARK: - History Tracking
+    
+    /// Add this page visit to history
+    private func addToHistory() {
+        // Create a history item for this page visit using metadata when available
+        let historyItem = HistoryItem(
+            id: UUID().uuidString,
+            pageTitle: pageTitle_?.isEmpty == false ? pageTitle_! : extractTitleFromUrl(pageUrl),
+            pageUrl: pageUrl,
+            visitedDate: Date(),
+            thumbnailUrl: thumbnailUrl_, // Use provided thumbnail from navigation metadata
+            description: snippet_ // Use provided snippet from navigation metadata
+        )
+        
+        historyRepository.addToHistory(historyItem)
+        print("📚 ArticleViewModel: Added page to history: '\(historyItem.pageTitle)' with snippet='\(snippet_ ?? "nil")' thumbnail='\(thumbnailUrl_?.absoluteString ?? "nil")'")
     }
     
     private func injectBundleAssetsViaUserScript(webView: WKWebView) {
@@ -466,6 +564,7 @@ class ArticleViewModel: NSObject, ObservableObject {
             "tablesort.min.js",
             "tablesort_init.js", 
             "collapsible_content.js",
+            "table_wrapper.js",
             "infobox_switcher_bootstrap.js",
             "switch_infobox.js",
             "horizontal_scroll_interceptor.js",
@@ -882,6 +981,7 @@ class ArticleViewModel: NSObject, ObservableObject {
             "js/tablesort.min.js",
             "js/tablesort_init.js", 
             "web/collapsible_content.js",
+            "web/table_wrapper.js",
             "web/infobox_switcher_bootstrap.js",
             "web/switch_infobox.js",
             "web/horizontal_scroll_interceptor.js",
@@ -1018,14 +1118,48 @@ class ArticleViewModel: NSObject, ObservableObject {
         }
     }
     
-    private func revealBody(webView: WKWebView) {
+    func completeLoadingWithBodyReveal() {
+        guard let webView = webView else {
+            print("❌ ArticleViewModel: WebView not available for body reveal")
+            return
+        }
+        
+        let timeString = DateFormatter.timeFormatter.string(from: Date())
         let revealBodyJs = "document.body.style.visibility = 'visible';"
-        print("🧪 ArticleViewModel: Executing JavaScript to reveal body...")
+        print("📊 [\(timeString)] 👁️ REVEALING BODY: Making content visible to user...")
+        
+        webView.evaluateJavaScript(revealBodyJs) { [weak self] result, error in
+            DispatchQueue.main.async {
+                let completionTimeString = DateFormatter.timeFormatter.string(from: Date())
+                if let error = error {
+                    print("📊 [\(completionTimeString)] ❌ BODY REVEAL FAILED: \(error)")
+                } else {
+                    print("📊 [\(completionTimeString)] ✅ CONTENT NOW VISIBLE: Body revealed - user can see page content!")
+                }
+                
+                // TIMELINE COMPLETION: Now that body is revealed, complete progress to 100%
+                self?.loadingProgress = 1.0
+                self?.loadingProgressText = "Complete!"
+                self?.isLoading = false
+                print("📊 [\(completionTimeString)] 🏁 PROGRESS BAR HIDDEN: Loading complete - content is now visible")
+                
+                // Record final page visibility time for timing measurements
+                self?.pageVisibilityTime = Date()
+            }
+        }
+    }
+    
+    private func revealBody(webView: WKWebView) {
+        let timeString = DateFormatter.timeFormatter.string(from: Date())
+        let revealBodyJs = "document.body.style.visibility = 'visible';"
+        print("📊 [\(timeString)] 👁️ REVEALING BODY: Making content visible to user...")
+        
         webView.evaluateJavaScript(revealBodyJs) { result, error in
+            let completionTimeString = DateFormatter.timeFormatter.string(from: Date())
             if let error = error {
-                print("❌ ArticleViewModel: Error revealing body: \(error)")
+                print("📊 [\(completionTimeString)] ❌ BODY REVEAL FAILED: \(error)")
             } else {
-                print("✅ ArticleViewModel: Body revealed successfully!")
+                print("📊 [\(completionTimeString)] ✅ CONTENT NOW VISIBLE: Body revealed - user can see page content!")
             }
         }
     }
@@ -1172,6 +1306,13 @@ class ArticleViewModel: NSObject, ObservableObject {
     
     deinit {
         progressObserver?.invalidate()
+        
+        // Clean up preloaded maps when ArticleViewModel is deallocated
+        Task { @MainActor in
+            osrsMapPreloadService.shared.clearPreloadedMaps()
+        }
+        
+        print("🧹 ArticleViewModel: Cleaned up and deallocated")
     }
 }
 
@@ -1184,9 +1325,33 @@ extension ArticleViewModel: WKNavigationDelegate {
     }
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("✅ ArticleViewModel: Finished loading custom HTML")
-        loadingProgress = 1.0
-        isLoading = false
+        let timeString = DateFormatter.timeFormatter.string(from: Date())
+        print("📊 [\(timeString)] 🌐 WEBKIT NAVIGATION FINISHED: Basic HTML loaded")
+        
+        // TIMING MEASUREMENT: Record when WebView navigation completes (NOT when content is visible)
+        if progressCompletionTime != nil && pageVisibilityTime == nil {
+            pageVisibilityTime = Date()
+            print("📊 [\(timeString)] 📄 NAVIGATION COMPLETE: WebView finished loading HTML")
+            
+            // Calculate and log the delay
+            if let startTime = progressCompletionTime, let endTime = pageVisibilityTime {
+                let delay = endTime.timeIntervalSince(startTime)
+                
+                // Store the measured delay for external access
+                self.lastMeasuredDelay = delay
+                
+                print("📊 TIMING RESULT: Progress-to-page delay = \(String(format: "%.3f", delay))s")
+                
+                // Provide automated optimization suggestions based on measured data
+                if delay > 0.5 {
+                    print("🔧 OPTIMIZATION: SEVERE delay detected (\(String(format: "%.3f", delay))s). Check WebView rendering pipeline.")
+                } else if delay > 0.1 {
+                    print("🔧 OPTIMIZATION: MODERATE delay (\(String(format: "%.3f", delay))s). Consider optimizing progress completion logic.")
+                } else {
+                    print("✅ OPTIMIZATION: Timing is within acceptable range (\(String(format: "%.3f", delay))s).")
+                }
+            }
+        }
         
         // Extract table of contents from the loaded content
         extractTableOfContents()

@@ -174,8 +174,12 @@ body.js-transforms-complete .infobox,
 /* Full Width Content (navboxes, large tables) */
 .collapsible-container:has(.navbox, .wikitable) {
         width: 100%; /* Match full-width content */
+        max-width: calc(100vw - 32px); /* Account for body margin (16px each side) */
         margin: 1em auto 0; /* Match navbox margins */
         float: none;
+        /* Enable horizontal scrolling for wide content */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
 }
 
 /* ========================================================================

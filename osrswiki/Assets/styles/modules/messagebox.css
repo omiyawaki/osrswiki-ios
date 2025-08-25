@@ -13,12 +13,13 @@
     border-left: 15px solid var(--body-dark) !important;
     margin: 8px 0;
     padding: 8px 12px;
-    width: 65%;
-    width: 65% !important;
+    width: 100%;
+    max-width: 100%;
 }
 
 .messagebox.stub {
-    width: 40%;
+    width: 100%;
+    max-width: 100%;
 }
 
 .messagebox.hasdialogue {

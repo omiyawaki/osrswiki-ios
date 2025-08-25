@@ -42,6 +42,9 @@ struct DonateView: View {
         .navigationTitle("Donate")
         .navigationBarTitleDisplayMode(.inline)
         .background(.osrsBackground)
+        .toolbarBackground(.osrsSurface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(themeManager.currentColorScheme, for: .navigationBar)
         .onAppear {
             donationManager.loadProducts()
         }
@@ -140,6 +143,7 @@ struct DonateView: View {
     private var processingSection: some View {
         VStack(spacing: 8) {
             ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())                .tint(.osrsPrimaryColor)
                 .scaleEffect(1.2)
             
             Text("Processing payment...")

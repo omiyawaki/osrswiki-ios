@@ -127,7 +127,7 @@ struct osrsContentsDrawerSimple: View {
     return osrsContentsDrawerSimple(
         isPresented: $isPresented,
         sections: [
-            TableOfContentsSection(id: "varrock", title: "Varrock", level: 1),
+            TableOfContentsSection(id: "gameplay", title: "Gameplay", level: 1),
             TableOfContentsSection(id: "contents", title: "Contents", level: 2),
             TableOfContentsSection(id: "history", title: "History", level: 2),
             TableOfContentsSection(id: "transportation", title: "Transportation", level: 2),

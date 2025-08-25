@@ -31,6 +31,9 @@ struct FeedbackView: View {
         .navigationTitle("Send Feedback")
         .navigationBarTitleDisplayMode(.inline)
         .background(.osrsBackground)
+        .toolbarBackground(.osrsSurface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(themeManager.currentColorScheme, for: .navigationBar)
         .sheet(isPresented: $showingBugReportForm) {
             osrsFeedbackFormView(
                 feedbackType: .bug,
@@ -178,7 +181,6 @@ struct osrsFeedbackCardView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.clear, lineWidth: 0)
         )
-        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -227,6 +229,9 @@ struct osrsFeedbackFormView: View {
                 }
             }
             .background(.osrsBackground)
+            .toolbarBackground(.osrsSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(themeManager.currentColorScheme, for: .navigationBar)
         }
     }
     

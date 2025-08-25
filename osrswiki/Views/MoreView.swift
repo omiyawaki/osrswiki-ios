@@ -21,52 +21,48 @@ struct MoreView: View {
                         MoreRowView(
                             iconName: "paintbrush.fill",
                             iconColor: Color(osrsTheme.primary),
-                            title: "Appearance",
-                            subtitle: "Themes and display settings"
+                            title: "Appearance"
                         )
                     }
-                    .listRowBackground(osrsTheme.surface)
+                    .listRowBackground(Color(osrsTheme.surfaceVariant))
                     
                     NavigationLink(destination: DonateView()) {
                         MoreRowView(
                             iconName: "heart.fill",
-                            iconColor: Color(osrsTheme.error),
-                            title: "Donate",
-                            subtitle: "Support OSRS Wiki development"
+                            iconColor: Color(osrsTheme.primary),
+                            title: "Donate"
                         )
                     }
-                    .listRowBackground(osrsTheme.surface)
+                    .listRowBackground(Color(osrsTheme.surfaceVariant))
                     
                     NavigationLink(destination: AboutView()) {
                         MoreRowView(
                             iconName: "info.circle.fill",
                             iconColor: Color(osrsTheme.primary),
-                            title: "About",
-                            subtitle: "App version and information"
+                            title: "About"
                         )
                     }
-                    .listRowBackground(osrsTheme.surface)
+                    .listRowBackground(Color(osrsTheme.surfaceVariant))
                     
                     NavigationLink(destination: FeedbackView()) {
                         MoreRowView(
                             iconName: "envelope.fill",
                             iconColor: Color(osrsTheme.primary),
-                            title: "Send Feedback",
-                            subtitle: "Report issues or request features"
+                            title: "Send Feedback"
                         )
                     }
-                    .listRowBackground(osrsTheme.surface)
+                    .listRowBackground(Color(osrsTheme.surfaceVariant))
                 }
+                .listSectionSeparator(.hidden)
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("More")
-            .navigationBarTitleDisplayMode(.large)
-            .background(.osrsBackground)
             .scrollContentBackground(.hidden)
-            .environment(\.defaultMinListRowHeight, 60)
-            .toolbarBackground(osrsTheme.surface, for: .navigationBar)
+            .navigationTitle("More")
+            .navigationBarTitleDisplayMode(.inline)
+            .background(.osrsBackground)
+            .toolbarBackground(.osrsSurface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(themeManager.currentColorScheme == .dark ? .dark : .light, for: .navigationBar)
+            .toolbarColorScheme(themeManager.currentColorScheme, for: .navigationBar)
         }
     }
 }
@@ -75,27 +71,20 @@ struct MoreRowView: View {
     let iconName: String
     let iconColor: Color
     let title: String
-    let subtitle: String
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             Image(systemName: iconName)
                 .foregroundColor(iconColor)
                 .frame(width: 24, height: 24)
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(.osrsOnSurface)
-                
-                Text(subtitle)
-                    .font(.osrsBody)
-                    .foregroundStyle(.osrsSecondaryTextColor)
-            }
+            Text(title)
+                .font(.body)
+                .foregroundStyle(.osrsPrimaryTextColor)
             
             Spacer()
         }
-        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 }
 

@@ -91,7 +91,7 @@ struct osrsVoiceSearchButton: View {
         Button(action: action) {
             Image(systemName: animationHelper.currentIcon)
                 .foregroundStyle(animationHelper.iconColor == .primary ? 
-                               Color(osrsTheme.onSurfaceVariant) : animationHelper.iconColor)
+                               Color(osrsTheme.placeholderColor) : animationHelper.iconColor)
                 .font(.system(size: 16, weight: .medium))
                 .scaleEffect(animationHelper.pulseScale)
         }

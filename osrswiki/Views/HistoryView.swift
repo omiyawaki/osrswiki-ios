@@ -6,10 +6,29 @@
 //
 
 import SwiftUI
+import Foundation
+
+// MARK: - Data Models (Matching Android Structure)
+
+/// iOS equivalent of Android's sealed HistoryItem class
+enum HistoryListItem: Identifiable {
+    case dateHeader(String)  // Date string for section header
+    case entryItem(ReadingHistoryEntry)  // Individual history entry
+    
+    var id: String {
+        switch self {
+        case .dateHeader(let dateString):
+            return "header_\(dateString)"
+        case .entryItem(let entry):
+            return "entry_\(entry.id)"
+        }
+    }
+}
 
 struct HistoryView: View {
     @Environment(\.osrsTheme) var osrsTheme
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: osrsThemeManager
     @StateObject private var viewModel = HistoryViewModel()
     @State private var showingClearConfirmation = false
     
@@ -29,7 +48,7 @@ struct HistoryView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
                 
-                if viewModel.historyEntries.isEmpty {
+                if viewModel.historyItems.isEmpty {
                     emptyStateView
                 } else {
                     historyList
@@ -52,11 +71,13 @@ struct HistoryView: View {
             .navigationDestination(for: NavigationDestination.self) { destination in
                 switch destination {
                 case .search:
-                    DedicatedSearchView()
-                        .environmentObject(appState)
-                        .environment(\.osrsTheme, osrsTheme)
+                    ImmediateStyledSearchView(
+                        appState: appState,
+                        themeManager: themeManager,
+                        theme: osrsTheme
+                    )
                 case .article(let articleDestination):
-                    ArticleView(pageTitle: articleDestination.title, pageUrl: articleDestination.url)
+                    ArticleView(pageTitle: articleDestination.title, pageUrl: articleDestination.url, snippet: articleDestination.snippet, thumbnailUrl: articleDestination.thumbnailUrl)
                         .environmentObject(appState)
                         .environment(\.osrsTheme, osrsTheme)
                 }
@@ -80,19 +101,6 @@ struct HistoryView: View {
                 .foregroundStyle(.osrsSecondaryTextColor)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
-            
-            Button(action: {
-                // Navigate to search or main page
-                // Navigate to search - TODO: implement navigation
-            }) {
-                Text("Start Browsing")
-                    .font(.headline)
-                    .foregroundStyle(.osrsOnPrimary)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(.osrsPrimary)
-                    .cornerRadius(8)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.osrsBackground)
@@ -100,27 +108,29 @@ struct HistoryView: View {
     
     private var historyList: some View {
         List {
-            ForEach(viewModel.historyEntries) { entry in
-                HistoryEntryRowView(entry: entry, onTap: {
-                    navigateToHistoryEntry(entry)
-                }) {
-                    viewModel.removeHistoryEntry(entry)
+            ForEach(viewModel.historyItems) { item in
+                switch item {
+                case .dateHeader(let dateString):
+                    // Date header section (matches Android DateHeaderViewHolder)
+                    HistoryDateHeaderView(dateString: dateString)
+                        .listRowBackground(osrsTheme.surface)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        
+                case .entryItem(let entry):
+                    // History entry (matches Android EntryViewHolder) 
+                    HistoryEntryRowView(entry: entry, onTap: {
+                        navigateToHistoryEntry(entry)
+                    }) {
+                        viewModel.removeHistoryEntry(entry)
+                    }
+                    .listRowBackground(osrsTheme.surface)
                 }
-                .listRowBackground(osrsTheme.surface)
             }
-            .onDelete(perform: deleteEntries)
         }
         .listStyle(PlainListStyle())
         .refreshable {
             viewModel.loadHistory()
-        }
-    }
-    
-    
-    private func deleteEntries(at offsets: IndexSet) {
-        let entriesToDelete = offsets.map { viewModel.historyEntries[$0] }
-        for entry in entriesToDelete {
-            viewModel.removeHistoryEntry(entry)
         }
     }
     
@@ -164,59 +174,50 @@ struct HistoryEntryRowView: View {
     let onDelete: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Thumbnail or icon
-            AsyncImage(url: entry.thumbnailUrl) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Image(systemName: "doc.text.fill")
-                    .foregroundStyle(.osrsPlaceholderColor)
-                    .font(.title2)
-            }
-            .frame(width: 44, height: 44)
-            .background(.osrsSearchBoxBackgroundColor)
-            .cornerRadius(8)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.displayText)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                    .foregroundStyle(.osrsPrimaryTextColor)
-                
-                if let snippet = entry.snippet, !snippet.isEmpty {
-                    Text(snippet)
-                        .font(.caption)
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Main content section (title and description) - matches saved pages
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(osrsStringUtils.extractMainTitle(entry.displayText))
+                        .font(.osrsListTitle)  // Use same font as saved pages
                         .lineLimit(2)
-                        .foregroundStyle(.osrsSecondaryTextColor)
+                        .foregroundStyle(.osrsPrimaryTextColor)
+                        .multilineTextAlignment(.leading)
+                    
+                    if let snippet = entry.snippet, !snippet.isEmpty {
+                        Text(snippet)
+                            .font(.subheadline)
+                            .lineLimit(2)
+                            .foregroundStyle(.osrsPrimaryTextColor) // Use primary color to match title
+                            .multilineTextAlignment(.leading)
+                    }
                 }
                 
-                HStack {
-                    Text(entry.sourceDescription)
-                        .font(.caption2)
-                        .foregroundStyle(.osrsPrimary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.osrsPrimaryContainer)
-                        .cornerRadius(4)
-                    
-                    Spacer()
-                    
-                    Text(entry.timestamp, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.osrsSecondaryTextColor)
+                Spacer()
+                
+                // Thumbnail positioned on the right (matching saved pages layout)
+                AsyncImage(url: entry.thumbnailUrl) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipped()
+                } placeholder: {
+                    Image(systemName: "doc.text.fill")
+                        .foregroundStyle(.osrsPlaceholderColor)
+                        .font(.title2)
                 }
+                .frame(width: 60, height: 60)  // Match saved pages size
+                .background(.osrsSearchBoxBackgroundColor)  // Match saved pages background
+                .cornerRadius(8)
             }
-            
-            Spacer()
+            .padding(.vertical, 8)
+            .padding(.horizontal, 24)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
+        .buttonStyle(PlainButtonStyle())
+        .listRowBackground(osrsTheme.surface)  // Proper theme background
+        .listRowSeparator(.visible, edges: .bottom)
+        .listRowSeparatorTint(osrsTheme.divider)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button("Delete", role: .destructive) {
                 onDelete()
@@ -252,67 +253,107 @@ struct ReadingHistoryEntry: Identifiable, Hashable {
     }
 }
 
+// MARK: - Date Header View (Matches Android DateHeaderViewHolder)
+
+struct HistoryDateHeaderView: View {
+    @Environment(\.osrsTheme) var osrsTheme
+    let dateString: String
+    
+    var body: some View {
+        HStack {
+            Text(dateString)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.osrsPrimaryTextColor)
+                .padding(.top, 8)
+                .padding(.bottom, 0)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .background(.osrsBackground)
+    }
+}
+
 // MARK: - HistoryViewModel
 class HistoryViewModel: ObservableObject {
-    @Published var historyEntries: [ReadingHistoryEntry] = []
+    @Published var historyItems: [HistoryListItem] = []  // Changed to grouped items
     @Published var isLoading = false
+    
+    private let historyRepository = HistoryRepository()
     
     func loadHistory() {
         isLoading = true
         
-        // TODO: Load from persistent storage (Core Data, SQLite, etc.)
-        // For now, populate with sample data
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.historyEntries = self.sampleHistoryEntries()
-            self.isLoading = false
+        // Load real history data from HistoryRepository
+        let rawHistoryItems = historyRepository.getHistory()
+        
+        // Convert to ReadingHistoryEntry and group by date (like Android)
+        var entries = rawHistoryItems.map { item in
+            ReadingHistoryEntry(
+                wikiUrl: item.pageUrl.absoluteString,
+                displayText: osrsStringUtils.extractMainTitle(item.displayTitle),
+                pageId: nil,
+                apiPath: item.pageTitle,
+                timestamp: item.visitedDate,
+                source: 1,
+                snippet: item.description,
+                thumbnailUrl: item.thumbnailUrl
+            )
         }
+        
+        
+        // Group by date (matching Android's groupByDate function)
+        self.historyItems = groupByDate(entries)
+        
+        isLoading = false
+    }
+    
+    /// Groups history entries by date, inserting date headers (matches Android implementation)
+    private func groupByDate(_ entries: [ReadingHistoryEntry]) -> [HistoryListItem] {
+        var result: [HistoryListItem] = []
+        
+        guard !entries.isEmpty else { return result }
+        
+        let calendar = Calendar.current
+        var prevDay = 0
+        
+        // Sort by timestamp descending (newest first)
+        let sortedEntries = entries.sorted { $0.timestamp > $1.timestamp }
+        
+        for entry in sortedEntries {
+            let components = calendar.dateComponents([.year, .dayOfYear], from: entry.timestamp)
+            let curDay = (components.year ?? 0) + (components.dayOfYear ?? 0)
+            
+            // Add date header if it's a new day
+            if prevDay == 0 || curDay != prevDay {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateStyle = .medium
+                let dateString = dateFormatter.string(from: entry.timestamp)
+                result.append(.dateHeader(dateString))
+            }
+            
+            prevDay = curDay
+            result.append(.entryItem(entry))
+        }
+        
+        return result
     }
     
     func removeHistoryEntry(_ entry: ReadingHistoryEntry) {
-        historyEntries.removeAll { $0.id == entry.id }
-        // TODO: Remove from persistent storage
+        // Find corresponding HistoryItem by URL and remove it
+        let rawHistoryItems = historyRepository.getHistory()
+        if let historyItem = rawHistoryItems.first(where: { $0.pageUrl.absoluteString == entry.wikiUrl }) {
+            historyRepository.removeFromHistory(historyItem.id)
+            loadHistory() // Reload to update UI
+        }
     }
     
     func clearAllHistory() {
-        historyEntries.removeAll()
-        // TODO: Clear from persistent storage
+        historyRepository.clearHistory()
+        historyItems.removeAll()
     }
     
-    
-    private func sampleHistoryEntries() -> [ReadingHistoryEntry] {
-        return [
-            ReadingHistoryEntry(
-                wikiUrl: "https://oldschool.runescape.wiki/w/Dragon_scimitar",
-                displayText: "Dragon scimitar",
-                pageId: 1234,
-                apiPath: "/Dragon_scimitar",
-                timestamp: Date().addingTimeInterval(-3600), // 1 hour ago
-                source: 1,
-                snippet: "The dragon scimitar is a scimitar requiring level 60 Attack to wield. It can be bought from Daga on Ape Atoll...",
-                thumbnailUrl: nil
-            ),
-            ReadingHistoryEntry(
-                wikiUrl: "https://oldschool.runescape.wiki/w/Barrows",
-                displayText: "Barrows",
-                pageId: 5678,
-                apiPath: "/Barrows",
-                timestamp: Date().addingTimeInterval(-7200), // 2 hours ago
-                source: 8,
-                snippet: "The Barrows is an area-based combat minigame. It involves defeating the six Barrows brothers...",
-                thumbnailUrl: nil
-            ),
-            ReadingHistoryEntry(
-                wikiUrl: "https://oldschool.runescape.wiki/w/Monkey_Madness_I",
-                displayText: "Monkey Madness I",
-                pageId: 9012,
-                apiPath: "/Monkey_Madness_I",
-                timestamp: Date().addingTimeInterval(-86400), // 1 day ago
-                source: 2,
-                snippet: "Monkey Madness I is a quest in the Gnome quest series and the sequel to The Grand Tree...",
-                thumbnailUrl: nil
-            )
-        ]
-    }
 }
 
 #Preview {
